@@ -1,0 +1,101 @@
+{% extends 'base.html' %}
+{% block title %}الحجوزات{% endblock %}
+{% block page_icon %}fa-calendar-alt{% endblock %}
+{% block page_title %}إدارة الحجوزات{% endblock %}
+{% block content %}
+<div class="stats-grid">
+  <div class="stat-card"><div class="stat-icon"><i class="fas fa-calendar-check"></i></div><div class="stat-info"><div class="value">{{ stats.total_today }}</div><div class="label">حجوزات اليوم</div></div></div>
+  <div class="stat-card green"><div class="stat-icon"><i class="fas fa-check-circle"></i></div><div class="stat-info"><div class="value">{{ stats.confirmed }}</div><div class="label">مؤكدة</div></div></div>
+  <div class="stat-card blue"><div class="stat-icon"><i class="fas fa-clock"></i></div><div class="stat-info"><div class="value">{{ stats.pending }}</div><div class="label">قيد الانتظار</div></div></div>
+</div>
+
+<div class="page-header">
+  <h1><i class="fas fa-calendar-alt"></i> الحجوزات</h1>
+  <button class="btn btn-primary" onclick="openModal('addResModal')"><i class="fas fa-plus"></i> حجز جديد</button>
+</div>
+
+<div class="card">
+  <div class="card-header"><h2><i class="fas fa-list"></i> قائمة الحجوزات</h2></div>
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr><th>#</th><th>العميل</th><th>الهاتف</th><th>الطاولة</th><th>عدد الأشخاص</th><th>التاريخ</th><th>الوقت</th><th>الحالة</th><th>إجراءات</th></tr>
+      </thead>
+      <tbody>
+        {% for r in reservations %}
+        <tr>
+          <td>{{ r.reservation_id }}</td>
+          <td><strong>{{ r.customer_name }}</strong></td>
+          <td>{{ r.phone or '—' }}</td>
+          <td>{{ r.table_number or '—' }}</td>
+          <td>{{ r.guests }} شخص</td>
+          <td>{{ r.reservation_date }}</td>
+          <td>{{ r.reservation_time }}</td>
+          <td>
+            {% if r.status=='Confirmed' %}<span class="badge badge-success">مؤكد</span>
+            {% elif r.status=='Cancelled' %}<span class="badge badge-danger">ملغى</span>
+            {% elif r.status=='No Show' %}<span class="badge badge-warning">لم يحضر</span>
+            {% else %}<span class="badge badge-secondary">{{ r.status }}</span>{% endif %}
+          </td>
+          <td>
+            <div style="display:flex;gap:5px">
+              {% if r.status not in ['Cancelled','No Show'] %}
+              <button class="btn btn-success btn-sm" onclick="updateStatus({{ r.reservation_id }},'Confirmed')"><i class="fas fa-check"></i></button>
+              <button class="btn btn-warning btn-sm" onclick="updateStatus({{ r.reservation_id }},'No Show')"><i class="fas fa-user-slash"></i></button>
+              <button class="btn btn-danger btn-sm" onclick="deleteRes({{ r.reservation_id }},this)"><i class="fas fa-trash"></i></button>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="9" style="text-align:center;padding:40px;color:#888">لا توجد حجوزات بعد</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Add Reservation Modal -->
+<div class="modal-overlay" id="addResModal">
+  <div class="modal-box">
+    <div class="modal-header"><h3><i class="fas fa-calendar-plus"></i> حجز جديد</h3><button class="modal-close" onclick="closeModal('addResModal')">×</button></div>
+    <div class="modal-body">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+        <div class="form-group" style="grid-column:1/-1"><label class="form-label">اسم العميل *</label><input type="text" class="form-control" id="rName"></div>
+        <div class="form-group"><label class="form-label">رقم الهاتف</label><input type="text" class="form-control" id="rPhone"></div>
+        <div class="form-group"><label class="form-label">الطاولة</label>
+          <select class="form-control" id="rTable">
+            <option value="">اختر طاولة</option>
+            {% for t in tables %}<option value="{{ t.table_id }}">{{ t.table_number }} ({{ t.location }} - {{ t.capacity }} أشخاص)</option>{% endfor %}
+          </select>
+        </div>
+        <div class="form-group"><label class="form-label">عدد الأشخاص</label><input type="number" class="form-control" id="rGuests" value="2" min="1"></div>
+        <div class="form-group"><label class="form-label">التاريخ *</label><input type="date" class="form-control" id="rDate"></div>
+        <div class="form-group"><label class="form-label">الوقت *</label><input type="time" class="form-control" id="rTime"></div>
+        <div class="form-group" style="grid-column:1/-1"><label class="form-label">طلبات خاصة</label><textarea class="form-control" id="rNotes" rows="2"></textarea></div>
+      </div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-light" onclick="closeModal('addResModal')">إلغاء</button><button class="btn btn-primary" onclick="saveRes()"><i class="fas fa-save"></i> حفظ</button></div>
+  </div>
+</div>
+{% endblock %}
+{% block extra_scripts %}
+<script>
+async function saveRes() {
+  const data = { customer_name: document.getElementById('rName').value, phone: document.getElementById('rPhone').value, table_id: document.getElementById('rTable').value||null, guests: parseInt(document.getElementById('rGuests').value), reservation_date: document.getElementById('rDate').value, reservation_time: document.getElementById('rTime').value, special_requests: document.getElementById('rNotes').value };
+  if (!data.customer_name || !data.reservation_date || !data.reservation_time) return showToast('يرجى ملء الحقول المطلوبة','warning');
+  const r = await apiPost('/reservations/add', data);
+  if (r.success) { showToast('تم الحجز بنجاح','success'); setTimeout(()=>location.reload(),800); }
+  else showToast('خطأ: '+r.error,'error');
+}
+async function updateStatus(id, status) {
+  const r = await apiPost('/reservations/update_status', {reservation_id: id, status});
+  if (r.success) { showToast('تم تحديث الحالة','success'); setTimeout(()=>location.reload(),600); }
+}
+async function deleteRes(id, btn) {
+  if (!confirm('حذف الحجز؟')) return;
+  const r = await apiPost('/reservations/delete', {reservation_id: id});
+  if (r.success) { btn.closest('tr').remove(); showToast('تم الحذف','success'); }
+}
+</script>
+{% endblock %}

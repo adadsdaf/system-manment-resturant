@@ -1,0 +1,138 @@
+{% extends 'base.html' %}
+{% block title %}شاشة المطبخ{% endblock %}
+{% block page_icon %}fa-fire{% endblock %}
+{% block page_title %}شاشة المطبخ{% endblock %}
+{% block content %}
+<div class="stats-grid" style="margin-bottom:20px">
+  <div class="stat-card" style="border-right-color:#ffc107">
+    <div class="stat-icon" style="background:rgba(255,193,7,.12);color:#ffc107"><i class="fas fa-clock"></i></div>
+    <div class="stat-info"><div class="value">{{ stats.pending }}</div><div class="label">بانتظار التحضير</div></div>
+  </div>
+  <div class="stat-card blue">
+    <div class="stat-icon"><i class="fas fa-fire"></i></div>
+    <div class="stat-info"><div class="value">{{ stats.preparing }}</div><div class="label">قيد التحضير</div></div>
+  </div>
+  <div class="stat-card green">
+    <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
+    <div class="stat-info"><div class="value">{{ stats.ready }}</div><div class="label">جاهزة للتسليم</div></div>
+  </div>
+</div>
+
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+  <div style="display:flex;gap:8px">
+    <button class="btn btn-light btn-sm" onclick="filterKitchen('all',this)" style="background:#1565C0;color:#fff">الكل</button>
+    <button class="btn btn-light btn-sm" onclick="filterKitchen('Pending',this)">⏳ انتظار</button>
+    <button class="btn btn-light btn-sm" onclick="filterKitchen('Preparing',this)">🔥 تحضير</button>
+    <button class="btn btn-light btn-sm" onclick="filterKitchen('Ready',this)">✅ جاهز</button>
+  </div>
+  <button class="btn btn-light btn-sm" onclick="loadOrders()"><i class="fas fa-sync"></i> تحديث</button>
+</div>
+
+<div id="kitchenBoard" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px">
+  {% for entry in orders %}
+  {% set o = entry.order %}
+  <div class="kitchen-card" data-status="{{ o.status }}" data-id="{{ o.kitchen_order_id }}">
+    <div class="k-card-header status-{{ o.status|lower }}">
+      <div>
+        <div style="font-weight:800;font-size:15px;color:#fff">طلب #{{ o.order_id }}</div>
+        <div style="font-size:11px;color:rgba(255,255,255,.75)">
+          {% if o.table_number %} طاولة {{ o.table_number }} | {% endif %}
+          {{ o.customer_name }}
+        </div>
+      </div>
+      <div style="text-align:left">
+        <div class="k-status-badge">{{ {'Pending':'⏳ انتظار','Preparing':'🔥 تحضير','Ready':'✅ جاهز','Served':'تم التسليم'}.get(o.status, o.status) }}</div>
+        <div style="font-size:10px;color:rgba(255,255,255,.6);margin-top:2px">
+          {{ o.created_at.strftime('%H:%M') if o.created_at else '' }}
+        </div>
+      </div>
+    </div>
+    <div class="k-card-body">
+      {% for item in entry.items %}
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #f0f0f0">
+        <span style="font-weight:600;font-size:13px">{{ item.item_name }}</span>
+        <span style="background:#1565C0;color:#fff;border-radius:12px;padding:2px 10px;font-size:12px;font-weight:700">×{{ item.quantity }}</span>
+      </div>
+      {% endfor %}
+      {% if o.notes %}
+      <div style="margin-top:8px;padding:6px 10px;background:#fff8e1;border-radius:6px;font-size:12px;color:#856404">
+        <i class="fas fa-sticky-note"></i> {{ o.notes }}
+      </div>
+      {% endif %}
+    </div>
+    <div class="k-card-footer">
+      {% if o.status == 'Pending' %}
+      <button class="btn btn-secondary btn-sm" style="flex:1" onclick="updateStatus({{ o.kitchen_order_id }},'Preparing',this)">
+        <i class="fas fa-fire"></i> بدء التحضير
+      </button>
+      {% elif o.status == 'Preparing' %}
+      <button class="btn btn-success btn-sm" style="flex:1" onclick="updateStatus({{ o.kitchen_order_id }},'Ready',this)">
+        <i class="fas fa-check"></i> جاهز للتسليم
+      </button>
+      {% elif o.status == 'Ready' %}
+      <button class="btn btn-sm" style="flex:1;background:#9b59b6;color:#fff" onclick="updateStatus({{ o.kitchen_order_id }},'Served',this)">
+        <i class="fas fa-utensils"></i> تم التسليم
+      </button>
+      {% endif %}
+    </div>
+  </div>
+  {% else %}
+  <div style="grid-column:1/-1;text-align:center;padding:60px;color:#888">
+    <i class="fas fa-check-circle" style="font-size:48px;color:#28a745;margin-bottom:12px;display:block"></i>
+    <p style="font-size:16px;font-weight:600">لا توجد طلبات نشطة حالياً</p>
+  </div>
+  {% endfor %}
+</div>
+
+<style>
+.kitchen-card {
+  background: #fff;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 2px 10px rgba(0,0,0,.08);
+  transition: transform .2s;
+}
+.kitchen-card:hover { transform: translateY(-2px); }
+.k-card-header {
+  padding: 14px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+.status-pending .k-card-header, .k-card-header.status-pending { background: linear-gradient(135deg,#f39c12,#e67e22); }
+.kitchen-card[data-status="Pending"] .k-card-header { background: linear-gradient(135deg,#f39c12,#e67e22); }
+.kitchen-card[data-status="Preparing"] .k-card-header { background: linear-gradient(135deg,#1565C0,#1976D2); }
+.kitchen-card[data-status="Ready"] .k-card-header { background: linear-gradient(135deg,#27ae60,#2ecc71); }
+.k-status-badge {
+  background: rgba(255,255,255,.2);
+  color: #fff;
+  border-radius: 12px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.k-card-body { padding: 12px 16px; }
+.k-card-footer { padding: 10px 16px; border-top: 1px solid #f0f0f0; display: flex; gap: 8px; }
+</style>
+{% endblock %}
+{% block extra_scripts %}
+<script>
+function filterKitchen(status, btn) {
+  document.querySelectorAll('.kitchen-card').forEach(c => {
+    c.style.display = (status === 'all' || c.dataset.status === status) ? '' : 'none';
+  });
+}
+async function updateStatus(id, status, btn) {
+  btn.disabled = true;
+  const r = await apiPost('/kitchen/update_status', {kitchen_order_id: id, status});
+  if (r.success) { showToast('تم تحديث الحالة', 'success'); setTimeout(()=>location.reload(), 600); }
+  else { showToast('خطأ', 'error'); btn.disabled = false; }
+}
+async function loadOrders() {
+  const r = await fetch('/kitchen/api/orders');
+  showToast('تم التحديث', 'info');
+  setTimeout(() => location.reload(), 300);
+}
+setInterval(loadOrders, 60000);
+</script>
+{% endblock %}

@@ -1,0 +1,126 @@
+{% extends 'base.html' %}
+{% block title %}العملاء{% endblock %}
+{% block page_icon %}fa-users{% endblock %}
+{% block page_title %}إدارة العملاء{% endblock %}
+{% block content %}
+<div class="stats-grid">
+  <div class="stat-card"><div class="stat-icon"><i class="fas fa-users"></i></div><div class="stat-info"><div class="value">{{ stats.total }}</div><div class="label">إجمالي العملاء</div></div></div>
+  <div class="stat-card green"><div class="stat-icon"><i class="fas fa-user-check"></i></div><div class="stat-info"><div class="value">{{ stats.active }}</div><div class="label">عملاء نشطون</div></div></div>
+  <div class="stat-card blue"><div class="stat-icon"><i class="fas fa-star"></i></div><div class="stat-info"><div class="value">{{ stats.total_points }}</div><div class="label">إجمالي نقاط الولاء</div></div></div>
+</div>
+
+<div class="page-header">
+  <h1><i class="fas fa-users"></i> قائمة العملاء</h1>
+  <button class="btn btn-primary" onclick="openModal('addCustModal')"><i class="fas fa-user-plus"></i> إضافة عميل</button>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <h2><i class="fas fa-list"></i> العملاء</h2>
+    <div class="search-bar" style="width:240px">
+      <i class="fas fa-search"></i>
+      <input type="text" placeholder="بحث بالاسم أو الهاتف..." oninput="searchCust(this.value)">
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table class="data-table" id="custTable">
+      <thead>
+        <tr><th>#</th><th>الاسم</th><th>الهاتف</th><th>البريد</th><th>إجمالي الإنفاق</th><th>عدد الطلبات</th><th>نقاط الولاء</th><th>الحالة</th><th>إجراءات</th></tr>
+      </thead>
+      <tbody>
+        {% for c in customers %}
+        <tr data-name="{{ c.full_name }}" data-phone="{{ c.phone }}">
+          <td>{{ loop.index }}</td>
+          <td><strong>{{ c.full_name }}</strong></td>
+          <td>{{ c.phone or '—' }}</td>
+          <td>{{ c.email or '—' }}</td>
+          <td><strong style="color:#27ae60">{{ "%.2f"|format(c.total_spent or 0) }}</strong></td>
+          <td>{{ c.order_count or 0 }}</td>
+          <td>
+            {% if c.points_balance %}
+            <span class="badge badge-primary"><i class="fas fa-star"></i> {{ c.points_balance }}</span>
+            {% else %}—{% endif %}
+          </td>
+          <td>
+            {% if c.is_active %}<span class="badge badge-success">نشط</span>
+            {% else %}<span class="badge badge-danger">غير نشط</span>{% endif %}
+          </td>
+          <td>
+            <div style="display:flex;gap:5px">
+              <button class="btn btn-light btn-sm" onclick="editCust({{ c.customer_id }},'{{ c.full_name|replace("'","\\'") }}','{{ c.phone }}','{{ c.email }}','{{ c.address|replace("'","\\'") }}')"><i class="fas fa-edit"></i></button>
+              <button class="btn btn-sm {{ 'btn-warning' if c.is_active else 'btn-success' }}" onclick="toggleCust({{ c.customer_id }},this)"><i class="fas {{ 'fa-user-times' if c.is_active else 'fa-user-check' }}"></i></button>
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="9" style="text-align:center;padding:40px;color:#888">لا يوجد عملاء بعد</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Add Customer Modal -->
+<div class="modal-overlay" id="addCustModal">
+  <div class="modal-box">
+    <div class="modal-header"><h3><i class="fas fa-user-plus"></i> إضافة عميل</h3><button class="modal-close" onclick="closeModal('addCustModal')">×</button></div>
+    <div class="modal-body">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+        <div class="form-group" style="grid-column:1/-1"><label class="form-label">الاسم الكامل *</label><input type="text" class="form-control" id="newCustName"></div>
+        <div class="form-group"><label class="form-label">رقم الهاتف</label><input type="text" class="form-control" id="newCustPhone"></div>
+        <div class="form-group"><label class="form-label">البريد الإلكتروني</label><input type="email" class="form-control" id="newCustEmail"></div>
+        <div class="form-group" style="grid-column:1/-1"><label class="form-label">العنوان</label><input type="text" class="form-control" id="newCustAddr"></div>
+      </div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-light" onclick="closeModal('addCustModal')">إلغاء</button><button class="btn btn-primary" onclick="saveCust()"><i class="fas fa-save"></i> حفظ</button></div>
+  </div>
+</div>
+
+<!-- Edit Modal -->
+<div class="modal-overlay" id="editCustModal">
+  <div class="modal-box">
+    <div class="modal-header"><h3><i class="fas fa-edit"></i> تعديل عميل</h3><button class="modal-close" onclick="closeModal('editCustModal')">×</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="editCustId">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+        <div class="form-group" style="grid-column:1/-1"><label class="form-label">الاسم</label><input type="text" class="form-control" id="editCustName"></div>
+        <div class="form-group"><label class="form-label">الهاتف</label><input type="text" class="form-control" id="editCustPhone"></div>
+        <div class="form-group"><label class="form-label">البريد</label><input type="email" class="form-control" id="editCustEmail"></div>
+        <div class="form-group" style="grid-column:1/-1"><label class="form-label">العنوان</label><input type="text" class="form-control" id="editCustAddr"></div>
+      </div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-light" onclick="closeModal('editCustModal')">إلغاء</button><button class="btn btn-primary" onclick="updateCust()"><i class="fas fa-save"></i> حفظ</button></div>
+  </div>
+</div>
+{% endblock %}
+{% block extra_scripts %}
+<script>
+function searchCust(v) {
+  const lv = v.toLowerCase();
+  document.querySelectorAll('#custTable tbody tr').forEach(r => {
+    r.style.display = ((r.dataset.name||'').toLowerCase().includes(lv)||(r.dataset.phone||'').includes(lv)) ? '' : 'none';
+  });
+}
+async function saveCust() {
+  const data = { full_name: document.getElementById('newCustName').value, phone: document.getElementById('newCustPhone').value, email: document.getElementById('newCustEmail').value, address: document.getElementById('newCustAddr').value };
+  if (!data.full_name) return showToast('أدخل الاسم','warning');
+  const r = await apiPost('/customers/add', data);
+  if (r.success) { showToast('تمت إضافة العميل','success'); setTimeout(()=>location.reload(),800); }
+  else showToast('خطأ: '+r.error,'error');
+}
+function editCust(id,name,phone,email,addr) {
+  document.getElementById('editCustId').value=id; document.getElementById('editCustName').value=name;
+  document.getElementById('editCustPhone').value=phone; document.getElementById('editCustEmail').value=email;
+  document.getElementById('editCustAddr').value=addr; openModal('editCustModal');
+}
+async function updateCust() {
+  const data = { customer_id: parseInt(document.getElementById('editCustId').value), full_name: document.getElementById('editCustName').value, phone: document.getElementById('editCustPhone').value, email: document.getElementById('editCustEmail').value, address: document.getElementById('editCustAddr').value };
+  const r = await apiPost('/customers/update', data);
+  if (r.success) { showToast('تم التعديل','success'); setTimeout(()=>location.reload(),800); }
+}
+async function toggleCust(id, btn) {
+  const r = await apiPost('/customers/toggle', {customer_id: id});
+  if (r.success) { showToast('تم تغيير الحالة','success'); setTimeout(()=>location.reload(),800); }
+}
+</script>
+{% endblock %}

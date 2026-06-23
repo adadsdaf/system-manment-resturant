@@ -1,0 +1,197 @@
+{% extends 'base.html' %}
+{% block title %}المخزون{% endblock %}
+{% block page_icon %}fa-boxes{% endblock %}
+{% block page_title %}إدارة المخزون{% endblock %}
+{% block content %}
+<div class="stats-grid">
+  <div class="stat-card"><div class="stat-icon"><i class="fas fa-boxes"></i></div><div class="stat-info"><div class="value">{{ stats.total }}</div><div class="label">إجمالي الأصناف</div></div></div>
+  <div class="stat-card red"><div class="stat-icon"><i class="fas fa-times-circle"></i></div><div class="stat-info"><div class="value">{{ stats.out_of_stock }}</div><div class="label">نفد المخزون</div></div></div>
+  <div class="stat-card" style="border-right-color:#ffc107"><div class="stat-icon" style="background:rgba(255,193,7,.12);color:#ffc107"><i class="fas fa-exclamation-triangle"></i></div><div class="stat-info"><div class="value">{{ stats.low_stock }}</div><div class="label">مخزون منخفض</div></div></div>
+  <div class="stat-card green"><div class="stat-icon"><i class="fas fa-dollar-sign"></i></div><div class="stat-info"><div class="value">{{ "%.0f"|format(stats.total_value) }}</div><div class="label">قيمة المخزون</div></div></div>
+</div>
+
+<div class="page-header">
+  <h1><i class="fas fa-boxes"></i> المواد والمكونات</h1>
+  <div style="display:flex;gap:10px">
+    <a href="/inventory/transactions" class="btn btn-light"><i class="fas fa-history"></i> سجل الحركات</a>
+    <button class="btn btn-primary" onclick="openModal('addIngModal')"><i class="fas fa-plus"></i> إضافة مادة</button>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <h2><i class="fas fa-list"></i> قائمة المواد</h2>
+    <div style="display:flex;gap:8px">
+      <select class="form-control" style="width:140px;padding:6px 10px" onchange="filterStatus(this.value)">
+        <option value="all">كل الحالات</option>
+        <option value="In Stock">في المخزون</option>
+        <option value="Low Stock">مخزون منخفض</option>
+        <option value="Out of Stock">نفد المخزون</option>
+      </select>
+      <div class="search-bar" style="width:200px">
+        <i class="fas fa-search"></i>
+        <input type="text" placeholder="بحث..." oninput="searchIng(this.value)">
+      </div>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table class="data-table" id="ingTable">
+      <thead>
+        <tr><th>#</th><th>المادة</th><th>الوحدة</th><th>المخزون الحالي</th><th>الحد الأدنى</th><th>مستوى إعادة الطلب</th><th>تكلفة الوحدة</th><th>المورد</th><th>الحالة</th><th>إجراءات</th></tr>
+      </thead>
+      <tbody>
+        {% for i in ingredients %}
+        <tr data-name="{{ i.name }}" data-status="{{ i.stock_status }}">
+          <td>{{ loop.index }}</td>
+          <td><strong>{{ i.name }}</strong></td>
+          <td>{{ i.unit }}</td>
+          <td>
+            <strong class="{{ 'text-success' if i.stock_status=='In Stock' else ('text-danger' if i.stock_status=='Out of Stock' else 'text-warning') }}" style="color:{{ '#27ae60' if i.stock_status=='In Stock' else ('#e74c3c' if i.stock_status=='Out of Stock' else '#f39c12') }}">
+              {{ i.current_stock }}
+            </strong>
+          </td>
+          <td>{{ i.minimum_stock }}</td>
+          <td>{{ i.reorder_level }}</td>
+          <td>{{ "%.2f"|format(i.unit_cost) }}</td>
+          <td>{{ i.supplier_name }}</td>
+          <td>
+            {% if i.stock_status=='In Stock' %}<span class="badge badge-success">في المخزون</span>
+            {% elif i.stock_status=='Out of Stock' %}<span class="badge badge-danger">نفد</span>
+            {% elif i.stock_status=='Low Stock' %}<span class="badge badge-danger">منخفض</span>
+            {% else %}<span class="badge badge-warning">أعد الطلب</span>{% endif %}
+          </td>
+          <td>
+            <div style="display:flex;gap:5px">
+              <button class="btn btn-success btn-sm" title="إضافة للمخزون" onclick="openStockIn({{ i.ingredient_id }}, '{{ i.name }}')"><i class="fas fa-plus"></i></button>
+              <button class="btn btn-warning btn-sm" title="سحب من المخزون" onclick="openStockOut({{ i.ingredient_id }}, '{{ i.name }}')"><i class="fas fa-minus"></i></button>
+              <button class="btn btn-light btn-sm" onclick="editIng({{ i.ingredient_id }}, '{{ i.name|replace("'","\\'") }}', '{{ i.unit }}', {{ i.minimum_stock }}, {{ i.reorder_level }}, {{ i.unit_cost }})"><i class="fas fa-edit"></i></button>
+              <button class="btn btn-danger btn-sm" onclick="deleteIng({{ i.ingredient_id }}, this)"><i class="fas fa-trash"></i></button>
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="10" style="text-align:center;padding:40px;color:#888">لا توجد مواد بعد</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Add Ingredient Modal -->
+<div class="modal-overlay" id="addIngModal">
+  <div class="modal-box">
+    <div class="modal-header"><h3><i class="fas fa-plus-circle"></i> إضافة مادة</h3><button class="modal-close" onclick="closeModal('addIngModal')">×</button></div>
+    <div class="modal-body">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+        <div class="form-group" style="grid-column:1/-1"><label class="form-label">اسم المادة *</label><input type="text" class="form-control" id="newIngName"></div>
+        <div class="form-group"><label class="form-label">وحدة القياس</label><select class="form-control" id="newIngUnit"><option>كجم</option><option>لتر</option><option>قطعة</option><option>علبة</option><option>كيس</option><option>جرام</option><option>مل</option></select></div>
+        <div class="form-group"><label class="form-label">الحد الأدنى</label><input type="number" class="form-control" id="newIngMin" value="0" min="0" step="0.1"></div>
+        <div class="form-group"><label class="form-label">مستوى إعادة الطلب</label><input type="number" class="form-control" id="newIngReorder" value="0" min="0" step="0.1"></div>
+        <div class="form-group"><label class="form-label">تكلفة الوحدة</label><input type="number" class="form-control" id="newIngCost" value="0" min="0" step="0.01"></div>
+        <div class="form-group" style="grid-column:1/-1"><label class="form-label">المورد</label><select class="form-control" id="newIngSupplier"><option value="">بدون مورد</option>{% for s in suppliers %}<option value="{{ s.supplier_id }}">{{ s.supplier_name }}</option>{% endfor %}</select></div>
+      </div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-light" onclick="closeModal('addIngModal')">إلغاء</button><button class="btn btn-primary" onclick="saveIng()"><i class="fas fa-save"></i> حفظ</button></div>
+  </div>
+</div>
+
+<!-- Edit Modal -->
+<div class="modal-overlay" id="editIngModal">
+  <div class="modal-box">
+    <div class="modal-header"><h3><i class="fas fa-edit"></i> تعديل مادة</h3><button class="modal-close" onclick="closeModal('editIngModal')">×</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="editIngId">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+        <div class="form-group" style="grid-column:1/-1"><label class="form-label">اسم المادة</label><input type="text" class="form-control" id="editIngName"></div>
+        <div class="form-group"><label class="form-label">وحدة القياس</label><select class="form-control" id="editIngUnit"><option>كجم</option><option>لتر</option><option>قطعة</option><option>علبة</option><option>كيس</option><option>جرام</option><option>مل</option></select></div>
+        <div class="form-group"><label class="form-label">الحد الأدنى</label><input type="number" class="form-control" id="editIngMin" step="0.1"></div>
+        <div class="form-group"><label class="form-label">مستوى إعادة الطلب</label><input type="number" class="form-control" id="editIngReorder" step="0.1"></div>
+        <div class="form-group"><label class="form-label">تكلفة الوحدة</label><input type="number" class="form-control" id="editIngCost" step="0.01"></div>
+      </div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-light" onclick="closeModal('editIngModal')">إلغاء</button><button class="btn btn-primary" onclick="updateIng()"><i class="fas fa-save"></i> حفظ</button></div>
+  </div>
+</div>
+
+<!-- Stock In Modal -->
+<div class="modal-overlay" id="stockInModal">
+  <div class="modal-box" style="max-width:380px">
+    <div class="modal-header"><h3><i class="fas fa-plus-circle" style="color:#27ae60"></i> إضافة للمخزون</h3><button class="modal-close" onclick="closeModal('stockInModal')">×</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="siIngId">
+      <p style="font-weight:700;margin-bottom:14px;color:#1565C0" id="siIngName"></p>
+      <div class="form-group"><label class="form-label">الكمية المضافة *</label><input type="number" class="form-control" id="siQty" value="1" min="0.1" step="0.1"></div>
+      <div class="form-group"><label class="form-label">تكلفة الوحدة</label><input type="number" class="form-control" id="siCost" value="0" step="0.01"></div>
+      <div class="form-group"><label class="form-label">مرجع / فاتورة</label><input type="text" class="form-control" id="siRef" placeholder="اختياري"></div>
+      <div class="form-group"><label class="form-label">ملاحظات</label><input type="text" class="form-control" id="siNotes" placeholder="اختياري"></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-light" onclick="closeModal('stockInModal')">إلغاء</button><button class="btn btn-success" onclick="doStockIn()"><i class="fas fa-plus"></i> إضافة</button></div>
+  </div>
+</div>
+
+<!-- Stock Out Modal -->
+<div class="modal-overlay" id="stockOutModal">
+  <div class="modal-box" style="max-width:380px">
+    <div class="modal-header"><h3><i class="fas fa-minus-circle" style="color:#e74c3c"></i> سحب من المخزون</h3><button class="modal-close" onclick="closeModal('stockOutModal')">×</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="soIngId">
+      <p style="font-weight:700;margin-bottom:14px;color:#e74c3c" id="soIngName"></p>
+      <div class="form-group"><label class="form-label">الكمية المسحوبة *</label><input type="number" class="form-control" id="soQty" value="1" min="0.1" step="0.1"></div>
+      <div class="form-group"><label class="form-label">ملاحظات</label><input type="text" class="form-control" id="soNotes" placeholder="اختياري"></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-light" onclick="closeModal('stockOutModal')">إلغاء</button><button class="btn btn-danger" onclick="doStockOut()"><i class="fas fa-minus"></i> سحب</button></div>
+  </div>
+</div>
+{% endblock %}
+{% block extra_scripts %}
+<script>
+function filterStatus(v) {
+  document.querySelectorAll('#ingTable tbody tr').forEach(r => {
+    r.style.display = (v==='all' || r.dataset.status===v) ? '' : 'none';
+  });
+}
+function searchIng(v) {
+  const lv = v.toLowerCase();
+  document.querySelectorAll('#ingTable tbody tr').forEach(r => {
+    r.style.display = (r.dataset.name||'').toLowerCase().includes(lv) ? '' : 'none';
+  });
+}
+async function saveIng() {
+  const data = { name: document.getElementById('newIngName').value, unit: document.getElementById('newIngUnit').value, minimum_stock: parseFloat(document.getElementById('newIngMin').value)||0, reorder_level: parseFloat(document.getElementById('newIngReorder').value)||0, unit_cost: parseFloat(document.getElementById('newIngCost').value)||0, supplier_id: document.getElementById('newIngSupplier').value||null };
+  if (!data.name) return showToast('أدخل اسم المادة','warning');
+  const r = await apiPost('/inventory/add', data);
+  if (r.success) { showToast('تمت الإضافة','success'); setTimeout(()=>location.reload(),800); }
+  else showToast('خطأ: '+r.error,'error');
+}
+function editIng(id,name,unit,min,reorder,cost) {
+  document.getElementById('editIngId').value=id; document.getElementById('editIngName').value=name;
+  document.getElementById('editIngUnit').value=unit; document.getElementById('editIngMin').value=min;
+  document.getElementById('editIngReorder').value=reorder; document.getElementById('editIngCost').value=cost;
+  openModal('editIngModal');
+}
+async function updateIng() {
+  const data = { ingredient_id: parseInt(document.getElementById('editIngId').value), name: document.getElementById('editIngName').value, unit: document.getElementById('editIngUnit').value, minimum_stock: parseFloat(document.getElementById('editIngMin').value)||0, reorder_level: parseFloat(document.getElementById('editIngReorder').value)||0, unit_cost: parseFloat(document.getElementById('editIngCost').value)||0 };
+  const r = await apiPost('/inventory/update', data);
+  if (r.success) { showToast('تم التعديل','success'); setTimeout(()=>location.reload(),800); }
+}
+function openStockIn(id, name) { document.getElementById('siIngId').value=id; document.getElementById('siIngName').textContent=name; openModal('stockInModal'); }
+function openStockOut(id, name) { document.getElementById('soIngId').value=id; document.getElementById('soIngName').textContent=name; openModal('stockOutModal'); }
+async function doStockIn() {
+  const data = { ingredient_id: parseInt(document.getElementById('siIngId').value), quantity: parseFloat(document.getElementById('siQty').value)||0, unit_cost: parseFloat(document.getElementById('siCost').value)||0, reference_no: document.getElementById('siRef').value, notes: document.getElementById('siNotes').value };
+  if (!data.quantity) return showToast('أدخل الكمية','warning');
+  const r = await apiPost('/inventory/stock_in', data);
+  if (r.success) { showToast('تمت الإضافة للمخزون','success'); setTimeout(()=>location.reload(),800); }
+}
+async function doStockOut() {
+  const data = { ingredient_id: parseInt(document.getElementById('soIngId').value), quantity: parseFloat(document.getElementById('soQty').value)||0, notes: document.getElementById('soNotes').value };
+  if (!data.quantity) return showToast('أدخل الكمية','warning');
+  const r = await apiPost('/inventory/stock_out', data);
+  if (r.success) { showToast('تم السحب من المخزون','success'); setTimeout(()=>location.reload(),800); }
+}
+async function deleteIng(id, btn) {
+  if (!confirm('هل أنت متأكد من حذف هذه المادة؟')) return;
+  const r = await apiPost('/inventory/delete', {ingredient_id: id});
+  if (r.success) { btn.closest('tr').remove(); showToast('تم الحذف','success'); }
+}
+</script>
+{% endblock %}

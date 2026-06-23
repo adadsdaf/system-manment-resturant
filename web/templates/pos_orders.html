@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+{% block title %}سجل الطلبات{% endblock %}
+{% block page_icon %}fa-history{% endblock %}
+{% block page_title %}سجل الطلبات الأخيرة{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1><i class="fas fa-history"></i> آخر الطلبات</h1>
+  <a href="/pos" class="btn btn-primary"><i class="fas fa-cash-register"></i> العودة لنقطة البيع</a>
+</div>
+<div class="card">
+  <div class="card-header"><h2><i class="fas fa-list"></i> الطلبات الأخيرة (20 طلب)</h2></div>
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr><th>#</th><th>العميل</th><th>المجموع</th><th>طريقة الدفع</th><th>الكاشير</th><th>الحالة</th><th>الوقت</th></tr>
+      </thead>
+      <tbody>
+        {% for o in orders %}
+        <tr>
+          <td><strong style="color:#F7941D">#{{ o.order_id }}</strong></td>
+          <td>{{ o.customer_name }}</td>
+          <td><strong>{{ "%.2f"|format(o.total_amount) }}</strong></td>
+          <td>
+            {% if o.payment_method=='Cash' %}<span class="badge badge-success">نقدي</span>
+            {% elif o.payment_method=='Card' %}<span class="badge badge-info">بطاقة</span>
+            {% else %}<span class="badge badge-secondary">{{ o.payment_method }}</span>{% endif %}
+          </td>
+          <td>{{ o.served_by }}</td>
+          <td><span class="badge badge-success">مكتمل</span></td>
+          <td style="font-size:12px;color:#888">{{ o.created_at.strftime('%Y-%m-%d %H:%M') if o.created_at else '' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" style="text-align:center;padding:40px;color:#888">لا توجد طلبات</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

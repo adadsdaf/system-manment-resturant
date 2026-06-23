@@ -1,0 +1,192 @@
+{% extends 'base.html' %}
+{% block title %}الموردون{% endblock %}
+{% block page_icon %}fa-truck{% endblock %}
+{% block page_title %}إدارة الموردين{% endblock %}
+{% block content %}
+<div class="stats-grid">
+  <div class="stat-card"><div class="stat-icon"><i class="fas fa-truck"></i></div><div class="stat-info"><div class="value">{{ stats.total }}</div><div class="label">إجمالي الموردين</div></div></div>
+  <div class="stat-card green"><div class="stat-icon"><i class="fas fa-check-circle"></i></div><div class="stat-info"><div class="value">{{ stats.active }}</div><div class="label">نشطون</div></div></div>
+  <div class="stat-card blue"><div class="stat-icon"><i class="fas fa-file-invoice"></i></div><div class="stat-info"><div class="value">{{ purchase_orders|selectattr('status','equalto','Pending')|list|length }}</div><div class="label">أوامر شراء معلقة</div></div></div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+  <!-- Suppliers List -->
+  <div>
+    <div class="page-header">
+      <h1 style="font-size:16px"><i class="fas fa-truck"></i> الموردون</h1>
+      <button class="btn btn-primary btn-sm" onclick="openModal('addSupModal')"><i class="fas fa-plus"></i> مورد جديد</button>
+    </div>
+    <div class="card">
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th>المورد</th><th>جهة الاتصال</th><th>الهاتف</th><th>الحالة</th><th>إجراءات</th></tr></thead>
+          <tbody>
+            {% for s in suppliers %}
+            <tr>
+              <td><strong>{{ s.supplier_name }}</strong></td>
+              <td>{{ s.contact_name or '—' }}</td>
+              <td>{{ s.phone or '—' }}</td>
+              <td>{% if s.is_active %}<span class="badge badge-success">نشط</span>{% else %}<span class="badge badge-danger">غير نشط</span>{% endif %}</td>
+              <td>
+                <div style="display:flex;gap:4px">
+                  <button class="btn btn-light btn-sm" onclick="editSup({{ s.supplier_id }},'{{ s.supplier_name|replace("'","\\'") }}','{{ s.contact_name }}','{{ s.phone }}','{{ s.email }}','{{ s.address|replace("'","\\'") }}')"><i class="fas fa-edit"></i></button>
+                  <button class="btn btn-primary btn-sm" onclick="openPO({{ s.supplier_id }},'{{ s.supplier_name|replace("'","\\'") }}')"><i class="fas fa-file-invoice"></i> PO</button>
+                </div>
+              </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" style="text-align:center;padding:30px;color:#888">لا يوجد موردون</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Purchase Orders -->
+  <div>
+    <div class="page-header">
+      <h1 style="font-size:16px"><i class="fas fa-file-invoice"></i> أوامر الشراء</h1>
+    </div>
+    <div class="card">
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th>#</th><th>المورد</th><th>المبلغ</th><th>الحالة</th><th>التاريخ</th><th>إجراءات</th></tr></thead>
+          <tbody>
+            {% for po in purchase_orders %}
+            <tr>
+              <td>#{{ po.po_id }}</td>
+              <td>{{ po.supplier_name }}</td>
+              <td><strong>{{ "%.2f"|format(po.total_amount) }}</strong></td>
+              <td>
+                {% if po.status=='Pending' %}<span class="badge badge-warning">معلق</span>
+                {% elif po.status=='Received' %}<span class="badge badge-success">مستلم</span>
+                {% else %}<span class="badge badge-secondary">{{ po.status }}</span>{% endif %}
+              </td>
+              <td style="font-size:12px">{{ po.created_at.strftime('%Y-%m-%d') if po.created_at else '' }}</td>
+              <td>
+                {% if po.status=='Pending' %}
+                <button class="btn btn-success btn-sm" onclick="receivePO({{ po.po_id }},this)"><i class="fas fa-check"></i> استلام</button>
+                {% endif %}
+              </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6" style="text-align:center;padding:30px;color:#888">لا توجد أوامر شراء</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Add Supplier Modal -->
+<div class="modal-overlay" id="addSupModal">
+  <div class="modal-box">
+    <div class="modal-header"><h3><i class="fas fa-truck"></i> مورد جديد</h3><button class="modal-close" onclick="closeModal('addSupModal')">×</button></div>
+    <div class="modal-body">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+        <div class="form-group" style="grid-column:1/-1"><label class="form-label">اسم المورد *</label><input type="text" class="form-control" id="sName"></div>
+        <div class="form-group"><label class="form-label">جهة الاتصال</label><input type="text" class="form-control" id="sContact"></div>
+        <div class="form-group"><label class="form-label">الهاتف</label><input type="text" class="form-control" id="sPhone"></div>
+        <div class="form-group"><label class="form-label">البريد</label><input type="email" class="form-control" id="sEmail"></div>
+        <div class="form-group" style="grid-column:1/-1"><label class="form-label">العنوان</label><input type="text" class="form-control" id="sAddr"></div>
+      </div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-light" onclick="closeModal('addSupModal')">إلغاء</button><button class="btn btn-primary" onclick="saveSup()"><i class="fas fa-save"></i> حفظ</button></div>
+  </div>
+</div>
+
+<!-- Edit Supplier Modal -->
+<div class="modal-overlay" id="editSupModal">
+  <div class="modal-box">
+    <div class="modal-header"><h3><i class="fas fa-edit"></i> تعديل مورد</h3><button class="modal-close" onclick="closeModal('editSupModal')">×</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="editSupId">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+        <div class="form-group" style="grid-column:1/-1"><label class="form-label">اسم المورد</label><input type="text" class="form-control" id="eSupName"></div>
+        <div class="form-group"><label class="form-label">جهة الاتصال</label><input type="text" class="form-control" id="eSupContact"></div>
+        <div class="form-group"><label class="form-label">الهاتف</label><input type="text" class="form-control" id="eSupPhone"></div>
+        <div class="form-group"><label class="form-label">البريد</label><input type="email" class="form-control" id="eSupEmail"></div>
+        <div class="form-group" style="grid-column:1/-1"><label class="form-label">العنوان</label><input type="text" class="form-control" id="eSupAddr"></div>
+      </div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-light" onclick="closeModal('editSupModal')">إلغاء</button><button class="btn btn-primary" onclick="updateSup()"><i class="fas fa-save"></i> حفظ</button></div>
+  </div>
+</div>
+
+<!-- Create PO Modal -->
+<div class="modal-overlay" id="poModal">
+  <div class="modal-box" style="max-width:600px">
+    <div class="modal-header"><h3><i class="fas fa-file-invoice"></i> أمر شراء جديد - <span id="poSupName"></span></h3><button class="modal-close" onclick="closeModal('poModal')">×</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="poSupId">
+      <div class="form-group"><label class="form-label">ملاحظات</label><input type="text" class="form-control" id="poNotes"></div>
+      <div class="form-group"><label class="form-label">التاريخ المتوقع للاستلام</label><input type="date" class="form-control" id="poExpDate"></div>
+      <hr style="margin:12px 0">
+      <strong style="font-size:13px;display:block;margin-bottom:10px">المواد:</strong>
+      <div id="poItems">
+        <div class="po-item-row" style="display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:8px;margin-bottom:8px;align-items:end">
+          <div><label class="form-label">المادة</label><select class="form-control po-ing">{% for i in ingredients %}<option value="{{ i.ingredient_id }}">{{ i.name }}</option>{% endfor %}</select></div>
+          <div><label class="form-label">الكمية</label><input type="number" class="form-control po-qty" value="1" min="0.1" step="0.1"></div>
+          <div><label class="form-label">التكلفة/وحدة</label><input type="number" class="form-control po-cost" value="0" step="0.01"></div>
+          <div><label class="form-label">&nbsp;</label><button class="btn btn-danger btn-sm" style="display:block" onclick="this.closest('.po-item-row').remove()"><i class="fas fa-times"></i></button></div>
+        </div>
+      </div>
+      <button class="btn btn-light btn-sm" onclick="addPORow()"><i class="fas fa-plus"></i> إضافة مادة</button>
+    </div>
+    <div class="modal-footer"><button class="btn btn-light" onclick="closeModal('poModal')">إلغاء</button><button class="btn btn-primary" onclick="savePO()"><i class="fas fa-save"></i> حفظ أمر الشراء</button></div>
+  </div>
+</div>
+{% endblock %}
+{% block extra_scripts %}
+<script>
+const INGREDIENTS_HTML = `{% for i in ingredients %}<option value="{{ i.ingredient_id }}">{{ i.name }}</option>{% endfor %}`;
+async function saveSup() {
+  const data = { supplier_name: document.getElementById('sName').value, contact_name: document.getElementById('sContact').value, phone: document.getElementById('sPhone').value, email: document.getElementById('sEmail').value, address: document.getElementById('sAddr').value };
+  if (!data.supplier_name) return showToast('أدخل اسم المورد','warning');
+  const r = await apiPost('/suppliers/add', data);
+  if (r.success) { showToast('تمت الإضافة','success'); setTimeout(()=>location.reload(),800); }
+}
+function editSup(id,name,contact,phone,email,addr) {
+  document.getElementById('editSupId').value=id; document.getElementById('eSupName').value=name;
+  document.getElementById('eSupContact').value=contact; document.getElementById('eSupPhone').value=phone;
+  document.getElementById('eSupEmail').value=email; document.getElementById('eSupAddr').value=addr;
+  openModal('editSupModal');
+}
+async function updateSup() {
+  const data = { supplier_id: parseInt(document.getElementById('editSupId').value), supplier_name: document.getElementById('eSupName').value, contact_name: document.getElementById('eSupContact').value, phone: document.getElementById('eSupPhone').value, email: document.getElementById('eSupEmail').value, address: document.getElementById('eSupAddr').value };
+  const r = await apiPost('/suppliers/update', data);
+  if (r.success) { showToast('تم التعديل','success'); setTimeout(()=>location.reload(),800); }
+}
+function openPO(supId, supName) {
+  document.getElementById('poSupId').value = supId;
+  document.getElementById('poSupName').textContent = supName;
+  openModal('poModal');
+}
+function addPORow() {
+  const row = document.createElement('div');
+  row.className = 'po-item-row';
+  row.style.cssText = 'display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:8px;margin-bottom:8px;align-items:end';
+  row.innerHTML = `<div><select class="form-control po-ing">${INGREDIENTS_HTML}</select></div><div><input type="number" class="form-control po-qty" value="1" min="0.1" step="0.1"></div><div><input type="number" class="form-control po-cost" value="0" step="0.01"></div><div><button class="btn btn-danger btn-sm" style="display:block" onclick="this.closest('.po-item-row').remove()"><i class="fas fa-times"></i></button></div>`;
+  document.getElementById('poItems').appendChild(row);
+}
+async function savePO() {
+  const rows = document.querySelectorAll('.po-item-row');
+  const items = [];
+  rows.forEach(r => { const qty=parseFloat(r.querySelector('.po-qty').value)||0; const cost=parseFloat(r.querySelector('.po-cost').value)||0; const ing=parseInt(r.querySelector('.po-ing').value); if(qty>0) items.push({ingredient_id:ing,quantity:qty,unit_cost:cost,subtotal:qty*cost}); });
+  if (!items.length) return showToast('أضف مواد للأمر','warning');
+  const data = { supplier_id: parseInt(document.getElementById('poSupId').value), notes: document.getElementById('poNotes').value, expected_date: document.getElementById('poExpDate').value||null, items };
+  const r = await apiPost('/suppliers/create_po', data);
+  if (r.success) { showToast('تم إنشاء أمر الشراء','success'); setTimeout(()=>location.reload(),800); }
+  else showToast('خطأ: '+r.error,'error');
+}
+async function receivePO(id, btn) {
+  if (!confirm('تأكيد استلام أمر الشراء؟')) return;
+  btn.disabled = true;
+  const r = await apiPost('/suppliers/receive_po', {po_id: id});
+  if (r.success) { showToast('تم تسجيل الاستلام وتحديث المخزون','success'); setTimeout(()=>location.reload(),800); }
+  else showToast('خطأ: '+r.error,'error');
+}
+</script>
+{% endblock %}

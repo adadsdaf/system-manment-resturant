@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+{% block title %}حركات المخزون{% endblock %}
+{% block page_icon %}fa-history{% endblock %}
+{% block page_title %}سجل حركات المخزون{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1><i class="fas fa-history"></i> حركات المخزون</h1>
+  <a href="/inventory" class="btn btn-light"><i class="fas fa-arrow-right"></i> العودة للمخزون</a>
+</div>
+<div class="card">
+  <div class="card-header">
+    <h2><i class="fas fa-list"></i> آخر 100 حركة</h2>
+    <div style="display:flex;gap:8px">
+      <select class="form-control" style="width:140px;padding:6px 10px" onchange="filterTx(this.value)">
+        <option value="all">كل الأنواع</option>
+        <option value="Stock In">إضافة</option>
+        <option value="Stock Out">سحب</option>
+      </select>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table class="data-table" id="txTable">
+      <thead>
+        <tr><th>#</th><th>المادة</th><th>النوع</th><th>الكمية</th><th>الوحدة</th><th>التكلفة</th><th>المرجع</th><th>الموظف</th><th>الوقت</th></tr>
+      </thead>
+      <tbody>
+        {% for t in transactions %}
+        <tr data-type="{{ t.transaction_type }}">
+          <td>{{ t.transaction_id }}</td>
+          <td><strong>{{ t.name }}</strong></td>
+          <td>
+            {% if t.transaction_type=='Stock In' %}
+            <span class="badge badge-success"><i class="fas fa-arrow-down"></i> إضافة</span>
+            {% else %}
+            <span class="badge badge-danger"><i class="fas fa-arrow-up"></i> سحب</span>
+            {% endif %}
+          </td>
+          <td><strong>{{ t.quantity }}</strong></td>
+          <td>{{ t.unit }}</td>
+          <td>{{ "%.2f"|format(t.unit_cost) if t.unit_cost else '—' }}</td>
+          <td>{{ t.reference_no or '—' }}</td>
+          <td>{{ t.full_name }}</td>
+          <td style="font-size:12px;color:#888">{{ t.created_at.strftime('%Y-%m-%d %H:%M') if t.created_at else '' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="9" style="text-align:center;padding:40px;color:#888">لا توجد حركات بعد</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+{% block extra_scripts %}
+<script>
+function filterTx(v) {
+  document.querySelectorAll('#txTable tbody tr').forEach(r => {
+    r.style.display = (v==='all' || r.dataset.type===v) ? '' : 'none';
+  });
+}
+</script>
+{% endblock %}

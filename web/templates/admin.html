@@ -1,0 +1,242 @@
+{% extends 'base.html' %}
+{% block title %}الإعدادات{% endblock %}
+{% block page_icon %}fa-cogs{% endblock %}
+{% block page_title %}الإعدادات والإدارة{% endblock %}
+{% block content %}
+
+<!-- Tabs -->
+<div style="display:flex;gap:0;margin-bottom:20px;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.06)">
+  <button class="admin-tab active" onclick="switchTab('users',this)"><i class="fas fa-users"></i> المستخدمون</button>
+  <button class="admin-tab" onclick="switchTab('settings',this)"><i class="fas fa-sliders-h"></i> الإعدادات العامة</button>
+  <button class="admin-tab" onclick="switchTab('tables',this)"><i class="fas fa-table"></i> الطاولات</button>
+  <button class="admin-tab" onclick="switchTab('audit',this)"><i class="fas fa-history"></i> سجل الأحداث</button>
+</div>
+<style>
+.admin-tab { padding:12px 22px; border:none; background:none; font-family:'Cairo',sans-serif; font-size:13px; font-weight:600; color:#888; cursor:pointer; border-bottom:3px solid transparent; transition:all .2s; display:flex;align-items:center;gap:6px; }
+.admin-tab:hover { color:#1a2332; }
+.admin-tab.active { color:#F7941D; border-bottom-color:#F7941D; }
+.tab-content { display:none; }
+.tab-content.active { display:block; }
+</style>
+
+<!-- Users Tab -->
+<div id="tab-users" class="tab-content active">
+  <div class="page-header">
+    <h1 style="font-size:16px"><i class="fas fa-users"></i> إدارة المستخدمين</h1>
+    <button class="btn btn-primary btn-sm" onclick="openModal('addUserModal')"><i class="fas fa-user-plus"></i> مستخدم جديد</button>
+  </div>
+  <div class="card">
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead><tr><th>الاسم</th><th>اسم المستخدم</th><th>الدور</th><th>آخر دخول</th><th>الحالة</th><th>إجراءات</th></tr></thead>
+        <tbody>
+          {% for u in users %}
+          <tr>
+            <td><strong>{{ u.full_name }}</strong><br><small style="color:#888">{{ u.email }}</small></td>
+            <td><code style="background:#f0f0f0;padding:2px 8px;border-radius:4px">{{ u.username }}</code></td>
+            <td>
+              {% if u.role_name=='Admin' %}<span class="badge badge-danger">{{ u.role_name }}</span>
+              {% elif u.role_name=='Manager' %}<span class="badge badge-primary">{{ u.role_name }}</span>
+              {% else %}<span class="badge badge-secondary">{{ u.role_name }}</span>{% endif %}
+            </td>
+            <td style="font-size:12px;color:#888">{{ u.last_login.strftime('%Y-%m-%d %H:%M') if u.last_login else '—' }}</td>
+            <td>{% if u.is_active %}<span class="badge badge-success">نشط</span>{% else %}<span class="badge badge-danger">معطل</span>{% endif %}</td>
+            <td>
+              <div style="display:flex;gap:5px">
+                <button class="btn btn-light btn-sm" onclick="editUser({{ u.user_id }},'{{ u.full_name|replace("'","\\'") }}','{{ u.email }}',{{ u.role_id }})"><i class="fas fa-edit"></i></button>
+                <button class="btn btn-warning btn-sm" onclick="resetPwd({{ u.user_id }})"><i class="fas fa-key"></i></button>
+                <button class="btn btn-sm {{ 'btn-danger' if u.is_active else 'btn-success' }}" onclick="toggleUser({{ u.user_id }},this)">
+                  <i class="fas {{ 'fa-user-times' if u.is_active else 'fa-user-check' }}"></i>
+                </button>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Settings Tab -->
+<div id="tab-settings" class="tab-content">
+  <div class="card">
+    <div class="card-header"><h2><i class="fas fa-cog"></i> الإعدادات العامة</h2></div>
+    <div class="card-body">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+        {% set settingDefs = [
+          ('restaurant_name','اسم المطعم','text'),
+          ('restaurant_address','العنوان','text'),
+          ('restaurant_phone','رقم الهاتف','text'),
+          ('currency','العملة','text'),
+          ('tax_rate','نسبة الضريبة %','number'),
+          ('tax_enabled','تفعيل الضريبة (1=نعم, 0=لا)','number'),
+          ('receipt_footer','نص ذيل الفاتورة','text'),
+          ('loyalty_points_rate','معدل نقاط الولاء','number'),
+        ] %}
+        {% for key, label, type in settingDefs %}
+        <div class="form-group">
+          <label class="form-label">{{ label }}</label>
+          <div style="display:flex;gap:8px">
+            <input type="{{ type }}" class="form-control" id="s-{{ key }}" value="{{ settings.get(key,'') }}">
+            <button class="btn btn-primary btn-sm" onclick="saveSetting('{{ key }}','s-{{ key }}')"><i class="fas fa-save"></i></button>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Tables Tab -->
+<div id="tab-tables" class="tab-content">
+  <div class="page-header">
+    <h1 style="font-size:16px"><i class="fas fa-table"></i> طاولات المطعم</h1>
+    <button class="btn btn-primary btn-sm" onclick="openModal('addTableModal')"><i class="fas fa-plus"></i> طاولة جديدة</button>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px">
+    {% for t in tables %}
+    <div style="background:#fff;border-radius:10px;padding:16px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.06);border-top:4px solid #F7941D">
+      <div style="font-size:24px;font-weight:800;color:#1a2332">{{ t.table_number }}</div>
+      <div style="font-size:12px;color:#888;margin:4px 0">{{ t.location }}</div>
+      <div style="font-size:12px;color:#555"><i class="fas fa-users"></i> {{ t.capacity }} أشخاص</div>
+      <button class="btn btn-danger btn-sm" style="margin-top:10px;width:100%" onclick="deleteTable({{ t.table_id }},this)"><i class="fas fa-trash"></i> حذف</button>
+    </div>
+    {% else %}
+    <div style="grid-column:1/-1;text-align:center;padding:40px;color:#888">لا توجد طاولات بعد</div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Audit Tab -->
+<div id="tab-audit" class="tab-content">
+  <div class="card">
+    <div class="card-header"><h2><i class="fas fa-history"></i> آخر 100 حدث</h2></div>
+    <div class="table-wrap" style="max-height:500px;overflow-y:auto">
+      <table class="data-table">
+        <thead><tr><th>المستخدم</th><th>الحدث</th><th>الجدول</th><th>الوقت</th></tr></thead>
+        <tbody>
+          {% for a in audit %}
+          <tr>
+            <td>{{ a.user_name }}</td>
+            <td>{{ a.action }}</td>
+            <td>{{ a.table_name }}</td>
+            <td style="font-size:11px;color:#888">{{ a.action_time.strftime('%Y-%m-%d %H:%M') if a.action_time else '' }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="4" style="text-align:center;padding:30px;color:#888">لا توجد أحداث</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Add User Modal -->
+<div class="modal-overlay" id="addUserModal">
+  <div class="modal-box">
+    <div class="modal-header"><h3><i class="fas fa-user-plus"></i> مستخدم جديد</h3><button class="modal-close" onclick="closeModal('addUserModal')">×</button></div>
+    <div class="modal-body">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+        <div class="form-group" style="grid-column:1/-1"><label class="form-label">الاسم الكامل *</label><input type="text" class="form-control" id="nuFullName"></div>
+        <div class="form-group"><label class="form-label">اسم المستخدم *</label><input type="text" class="form-control" id="nuUsername"></div>
+        <div class="form-group"><label class="form-label">البريد</label><input type="email" class="form-control" id="nuEmail"></div>
+        <div class="form-group"><label class="form-label">الدور *</label><select class="form-control" id="nuRole">{% for r in roles %}<option value="{{ r.role_id }}">{{ r.role_name }}</option>{% endfor %}</select></div>
+        <div class="form-group"><label class="form-label">كلمة المرور *</label><input type="password" class="form-control" id="nuPassword"></div>
+      </div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-light" onclick="closeModal('addUserModal')">إلغاء</button><button class="btn btn-primary" onclick="saveUser()"><i class="fas fa-save"></i> حفظ</button></div>
+  </div>
+</div>
+
+<!-- Edit User Modal -->
+<div class="modal-overlay" id="editUserModal">
+  <div class="modal-box" style="max-width:400px">
+    <div class="modal-header"><h3><i class="fas fa-edit"></i> تعديل مستخدم</h3><button class="modal-close" onclick="closeModal('editUserModal')">×</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="euId">
+      <div class="form-group"><label class="form-label">الاسم الكامل</label><input type="text" class="form-control" id="euName"></div>
+      <div class="form-group"><label class="form-label">البريد</label><input type="email" class="form-control" id="euEmail"></div>
+      <div class="form-group"><label class="form-label">الدور</label><select class="form-control" id="euRole">{% for r in roles %}<option value="{{ r.role_id }}">{{ r.role_name }}</option>{% endfor %}</select></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-light" onclick="closeModal('editUserModal')">إلغاء</button><button class="btn btn-primary" onclick="updateUser()"><i class="fas fa-save"></i> حفظ</button></div>
+  </div>
+</div>
+
+<!-- Reset Password Modal -->
+<div class="modal-overlay" id="resetPwdModal">
+  <div class="modal-box" style="max-width:360px">
+    <div class="modal-header"><h3><i class="fas fa-key"></i> إعادة تعيين كلمة المرور</h3><button class="modal-close" onclick="closeModal('resetPwdModal')">×</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="rpUserId">
+      <div class="form-group"><label class="form-label">كلمة المرور الجديدة *</label><input type="password" class="form-control" id="rpPwd"></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-light" onclick="closeModal('resetPwdModal')">إلغاء</button><button class="btn btn-primary" onclick="doResetPwd()"><i class="fas fa-save"></i> تغيير</button></div>
+  </div>
+</div>
+
+<!-- Add Table Modal -->
+<div class="modal-overlay" id="addTableModal">
+  <div class="modal-box" style="max-width:380px">
+    <div class="modal-header"><h3><i class="fas fa-table"></i> طاولة جديدة</h3><button class="modal-close" onclick="closeModal('addTableModal')">×</button></div>
+    <div class="modal-body">
+      <div class="form-group"><label class="form-label">رقم الطاولة *</label><input type="text" class="form-control" id="tNum" placeholder="مثال: 5 أو VIP1"></div>
+      <div class="form-group"><label class="form-label">السعة</label><input type="number" class="form-control" id="tCap" value="4" min="1"></div>
+      <div class="form-group"><label class="form-label">الموقع</label><input type="text" class="form-control" id="tLoc" placeholder="مثال: القاعة الرئيسية" value="القاعة الرئيسية"></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-light" onclick="closeModal('addTableModal')">إلغاء</button><button class="btn btn-primary" onclick="saveTable()"><i class="fas fa-save"></i> حفظ</button></div>
+  </div>
+</div>
+{% endblock %}
+{% block extra_scripts %}
+<script>
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.admin-tab').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  btn.classList.add('active');
+}
+async function saveSetting(key, inputId) {
+  const val = document.getElementById(inputId).value;
+  const r = await apiPost('/admin/save_setting', {key, value: val});
+  if (r.success) showToast('تم الحفظ: ' + key,'success');
+}
+async function saveUser() {
+  const data = { full_name: document.getElementById('nuFullName').value, username: document.getElementById('nuUsername').value, email: document.getElementById('nuEmail').value, role_id: parseInt(document.getElementById('nuRole').value), password: document.getElementById('nuPassword').value };
+  if (!data.full_name || !data.username || !data.password) return showToast('يرجى ملء الحقول المطلوبة','warning');
+  const r = await apiPost('/admin/create_user', data);
+  if (r.success) { showToast('تمت إضافة المستخدم','success'); setTimeout(()=>location.reload(),800); }
+  else showToast('خطأ: '+r.error,'error');
+}
+function editUser(id,name,email,roleId) {
+  document.getElementById('euId').value=id; document.getElementById('euName').value=name;
+  document.getElementById('euEmail').value=email; document.getElementById('euRole').value=roleId;
+  openModal('editUserModal');
+}
+async function updateUser() {
+  const data = { user_id: parseInt(document.getElementById('euId').value), full_name: document.getElementById('euName').value, email: document.getElementById('euEmail').value, role_id: parseInt(document.getElementById('euRole').value) };
+  const r = await apiPost('/admin/update_user', data);
+  if (r.success) { showToast('تم التعديل','success'); setTimeout(()=>location.reload(),800); }
+}
+function resetPwd(uid) { document.getElementById('rpUserId').value=uid; openModal('resetPwdModal'); }
+async function doResetPwd() {
+  const r = await apiPost('/admin/reset_password', { user_id: parseInt(document.getElementById('rpUserId').value), new_password: document.getElementById('rpPwd').value });
+  if (r.success) { showToast('تم تغيير كلمة المرور','success'); closeModal('resetPwdModal'); }
+}
+async function toggleUser(id, btn) {
+  const r = await apiPost('/admin/toggle_user', {user_id: id});
+  if (r.success) { showToast('تم تغيير الحالة','success'); setTimeout(()=>location.reload(),800); }
+}
+async function saveTable() {
+  const data = { table_number: document.getElementById('tNum').value, capacity: parseInt(document.getElementById('tCap').value)||4, location: document.getElementById('tLoc').value };
+  if (!data.table_number) return showToast('أدخل رقم الطاولة','warning');
+  const r = await apiPost('/admin/add_table', data);
+  if (r.success) { showToast('تمت الإضافة','success'); setTimeout(()=>location.reload(),800); }
+}
+async function deleteTable(id, btn) {
+  if (!confirm('حذف الطاولة؟')) return;
+  const r = await apiPost('/admin/delete_table', {table_id: id});
+  if (r.success) { btn.closest('[style]').remove(); showToast('تم الحذف','success'); }
+}
+</script>
+{% endblock %}

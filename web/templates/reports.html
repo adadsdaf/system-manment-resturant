@@ -1,0 +1,138 @@
+{% extends 'base.html' %}
+{% block title %}التقارير{% endblock %}
+{% block page_icon %}fa-chart-bar{% endblock %}
+{% block page_title %}التقارير والإحصائيات{% endblock %}
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+{% endblock %}
+{% block content %}
+<!-- Period Selector -->
+<div style="display:flex;gap:8px;margin-bottom:24px;align-items:center;flex-wrap:wrap">
+  <span style="font-weight:700;color:#555">الفترة:</span>
+  <button class="btn btn-secondary" onclick="loadReport('today',this)">اليوم</button>
+  <button class="btn btn-light" onclick="loadReport('week',this)">آخر 7 أيام</button>
+  <button class="btn btn-light" onclick="loadReport('month',this)">هذا الشهر</button>
+  <button class="btn btn-light btn-sm" onclick="window.print()" style="margin-right:auto"><i class="fas fa-print"></i> طباعة</button>
+</div>
+
+<!-- Summary Cards -->
+<div class="stats-grid" id="reportStats">
+  <div class="stat-card"><div class="stat-icon"><i class="fas fa-money-bill-wave"></i></div><div class="stat-info"><div class="value" id="s-revenue">—</div><div class="label">إجمالي المبيعات</div></div></div>
+  <div class="stat-card blue"><div class="stat-icon"><i class="fas fa-shopping-bag"></i></div><div class="stat-info"><div class="value" id="s-orders">—</div><div class="label">عدد الطلبات</div></div></div>
+  <div class="stat-card green"><div class="stat-icon"><i class="fas fa-calculator"></i></div><div class="stat-info"><div class="value" id="s-avg">—</div><div class="label">متوسط الطلب</div></div></div>
+  <div class="stat-card red"><div class="stat-icon"><i class="fas fa-percent"></i></div><div class="stat-info"><div class="value" id="s-discount">—</div><div class="label">إجمالي الخصومات</div></div></div>
+</div>
+
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:20px;margin-bottom:20px">
+  <!-- Sales Chart -->
+  <div class="card">
+    <div class="card-header"><h2><i class="fas fa-chart-line"></i> حركة المبيعات</h2></div>
+    <div class="card-body"><canvas id="salesChart" height="100"></canvas></div>
+  </div>
+  <!-- Payment Methods -->
+  <div class="card">
+    <div class="card-header"><h2><i class="fas fa-credit-card"></i> طرق الدفع</h2></div>
+    <div class="card-body"><canvas id="paymentChart" height="200"></canvas></div>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px">
+  <!-- Top Items -->
+  <div class="card">
+    <div class="card-header"><h2><i class="fas fa-fire"></i> الأصناف الأكثر مبيعاً</h2></div>
+    <div class="card-body" style="padding:0">
+      <table class="data-table" id="topItemsTable">
+        <thead><tr><th>#</th><th>الصنف</th><th>الكمية</th><th>الإيراد</th></tr></thead>
+        <tbody><tr><td colspan="4" style="text-align:center;padding:20px;color:#888">جاري التحميل...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+  <!-- By Category -->
+  <div class="card">
+    <div class="card-header"><h2><i class="fas fa-th-list"></i> المبيعات حسب الفئة</h2></div>
+    <div class="card-body"><canvas id="categoryChart" height="200"></canvas></div>
+  </div>
+</div>
+
+<!-- Low Stock Alert -->
+<div class="card">
+  <div class="card-header"><h2><i class="fas fa-exclamation-triangle" style="color:#e74c3c"></i> تنبيهات المخزون المنخفض</h2></div>
+  <div class="card-body" style="padding:0">
+    <table class="data-table" id="lowStockTable">
+      <thead><tr><th>المادة</th><th>الوحدة</th><th>المخزون الحالي</th><th>الحد الأدنى</th><th>المورد</th></tr></thead>
+      <tbody><tr><td colspan="5" style="text-align:center;padding:20px;color:#888">جاري التحميل...</td></tr></tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+{% block extra_scripts %}
+<script>
+let salesChart, payChart, catChart;
+
+async function loadReport(period, btn) {
+  document.querySelectorAll('.page-body .btn').forEach(b => { b.classList.remove('btn-secondary'); b.classList.add('btn-light'); });
+  if(btn) { btn.classList.remove('btn-light'); btn.classList.add('btn-secondary'); }
+
+  const r = await fetch('/reports/api/summary?period=' + period);
+  const data = await r.json();
+  const s = data.summary;
+
+  document.getElementById('s-revenue').textContent = s.total_revenue.toFixed(0);
+  document.getElementById('s-orders').textContent = s.total_orders;
+  document.getElementById('s-avg').textContent = s.avg_order.toFixed(1);
+  document.getElementById('s-discount').textContent = s.total_discount.toFixed(0);
+
+  // Sales Chart
+  const labels = data.daily.map(d => d.date);
+  const revs = data.daily.map(d => d.revenue);
+  if (salesChart) salesChart.destroy();
+  salesChart = new Chart(document.getElementById('salesChart'), {
+    type: 'line',
+    data: { labels, datasets: [{ label: 'المبيعات', data: revs, borderColor: '#F7941D', backgroundColor: 'rgba(247,148,29,.1)', tension: .4, fill: true, pointBackgroundColor: '#F7941D', pointRadius: 4 }] },
+    options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } }, responsive: true }
+  });
+
+  // Payment Chart
+  const pmLabels = data.by_payment.map(p => ({Cash:'نقدي',Card:'بطاقة',Transfer:'تحويل'}[p.method]||p.method));
+  const pmData = data.by_payment.map(p => p.revenue);
+  if (payChart) payChart.destroy();
+  payChart = new Chart(document.getElementById('paymentChart'), {
+    type: 'doughnut',
+    data: { labels: pmLabels, datasets: [{ data: pmData, backgroundColor: ['#F7941D','#1565C0','#27ae60','#e74c3c','#9b59b6'] }] },
+    options: { plugins: { legend: { position: 'bottom' } }, responsive: true }
+  });
+
+  // Top Items Table
+  const tbody = document.querySelector('#topItemsTable tbody');
+  if (data.top_items.length) {
+    tbody.innerHTML = data.top_items.map((item,i) =>
+      `<tr><td>${i+1}</td><td><strong>${item.name}</strong></td><td><span class="badge badge-primary">${item.qty}</span></td><td>${item.revenue.toFixed(2)}</td></tr>`
+    ).join('');
+  } else {
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;color:#888">لا توجد بيانات</td></tr>';
+  }
+
+  // Category Chart
+  const catLabels = data.by_category.map(c => c.name);
+  const catData = data.by_category.map(c => c.revenue);
+  if (catChart) catChart.destroy();
+  catChart = new Chart(document.getElementById('categoryChart'), {
+    type: 'bar',
+    data: { labels: catLabels, datasets: [{ label: 'الإيراد', data: catData, backgroundColor: '#1565C0', borderRadius: 6 }] },
+    options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } }, indexAxis: 'y', responsive: true }
+  });
+
+  // Low Stock Table
+  const ls = document.querySelector('#lowStockTable tbody');
+  if (data.low_stock.length) {
+    ls.innerHTML = data.low_stock.map(i =>
+      `<tr><td><strong>${i.name}</strong></td><td>${i.unit}</td><td><strong style="color:#e74c3c">${i.current_stock}</strong></td><td>${i.minimum_stock}</td><td>${i.supplier}</td></tr>`
+    ).join('');
+  } else {
+    ls.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:#27ae60"><i class="fas fa-check-circle"></i> المخزون كافٍ لجميع المواد</td></tr>';
+  }
+}
+
+loadReport('today', document.querySelector('.page-body .btn-secondary'));
+</script>
+{% endblock %}

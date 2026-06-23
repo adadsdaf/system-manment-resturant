@@ -1,0 +1,269 @@
+{% extends 'base.html' %}
+{% block title %}قائمة الطعام{% endblock %}
+{% block page_icon %}fa-utensils{% endblock %}
+{% block page_title %}إدارة قائمة الطعام{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1><i class="fas fa-utensils"></i> قائمة الطعام</h1>
+  <div style="display:flex;gap:10px">
+    <button class="btn btn-light" onclick="openModal('addCategoryModal')"><i class="fas fa-folder-plus"></i> فئة جديدة</button>
+    <button class="btn btn-primary" onclick="openModal('addItemModal')"><i class="fas fa-plus"></i> إضافة صنف</button>
+  </div>
+</div>
+
+<!-- Filter Tabs -->
+<div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap">
+  <button class="btn btn-secondary" onclick="filterMenu('all',this)" id="tabAll">الكل ({{ items|length }})</button>
+  {% for cat in categories %}
+  <button class="btn btn-light" onclick="filterMenu('{{ cat.category_id }}',this)" id="tab{{ cat.category_id }}">
+    {{ cat.category_name }}
+    <span style="background:rgba(0,0,0,.1);border-radius:10px;padding:1px 7px;font-size:11px;margin-right:4px">
+      {{ items|selectattr('category_id','equalto',cat.category_id)|list|length }}
+    </span>
+  </button>
+  {% endfor %}
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <h2><i class="fas fa-list"></i> الأصناف</h2>
+    <div class="search-bar" style="width:240px">
+      <i class="fas fa-search"></i>
+      <input type="text" placeholder="بحث في الأصناف..." oninput="searchItems(this.value)">
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table class="data-table" id="menuTable">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>اسم الصنف</th>
+          <th>الفئة</th>
+          <th>سعر البيع</th>
+          <th>سعر التكلفة</th>
+          <th>الربح</th>
+          <th>الحالة</th>
+          <th>الإجراءات</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in items %}
+        <tr data-cat="{{ item.category_id }}" data-name="{{ item.item_name }}">
+          <td>{{ loop.index }}</td>
+          <td>
+            <div style="font-weight:700">{{ item.item_name }}</div>
+            {% if item.description %}<div style="font-size:11px;color:#888">{{ item.description[:50] }}</div>{% endif %}
+          </td>
+          <td><span class="badge badge-secondary">{{ item.category_name }}</span></td>
+          <td><strong style="color:#27ae60">{{ "%.2f"|format(item.price) }}</strong></td>
+          <td>{{ "%.2f"|format(item.cost_price) }}</td>
+          <td>
+            {% set profit = item.price - item.cost_price %}
+            <span class="{{ 'badge-success' if profit > 0 else 'badge-danger' }} badge">
+              {{ "%.2f"|format(profit) }}
+            </span>
+          </td>
+          <td>
+            {% if item.is_available %}
+            <span class="badge badge-success">متاح</span>
+            {% else %}
+            <span class="badge badge-danger">غير متاح</span>
+            {% endif %}
+          </td>
+          <td>
+            <div style="display:flex;gap:6px">
+              <button class="btn btn-light btn-sm" onclick="editItem({{ item.item_id }}, '{{ item.item_name|replace("'","\\'") }}', {{ item.category_id }}, {{ item.price }}, {{ item.cost_price }}, '{{ item.description|replace("'","\\'") }}')">
+                <i class="fas fa-edit"></i>
+              </button>
+              <button class="btn btn-sm {{ 'btn-warning' if item.is_available else 'btn-success' }}" onclick="toggleItem({{ item.item_id }}, this)">
+                <i class="fas {{ 'fa-eye-slash' if item.is_available else 'fa-eye' }}"></i>
+              </button>
+              <button class="btn btn-danger btn-sm" onclick="deleteItem({{ item.item_id }}, this)">
+                <i class="fas fa-trash"></i>
+              </button>
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="8" style="text-align:center;padding:40px;color:#888">لا توجد أصناف بعد</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Add Item Modal -->
+<div class="modal-overlay" id="addItemModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3><i class="fas fa-plus-circle"></i> إضافة صنف جديد</h3>
+      <button class="modal-close" onclick="closeModal('addItemModal')">×</button>
+    </div>
+    <div class="modal-body">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+        <div class="form-group" style="grid-column:1/-1">
+          <label class="form-label">اسم الصنف *</label>
+          <input type="text" class="form-control" id="newItemName" placeholder="اسم الصنف">
+        </div>
+        <div class="form-group" style="grid-column:1/-1">
+          <label class="form-label">الفئة *</label>
+          <select class="form-control" id="newItemCat">
+            {% for cat in categories %}<option value="{{ cat.category_id }}">{{ cat.category_name }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">سعر البيع *</label>
+          <input type="number" class="form-control" id="newItemPrice" placeholder="0.00" step="0.01" min="0">
+        </div>
+        <div class="form-group">
+          <label class="form-label">سعر التكلفة</label>
+          <input type="number" class="form-control" id="newItemCost" placeholder="0.00" step="0.01" min="0">
+        </div>
+        <div class="form-group" style="grid-column:1/-1">
+          <label class="form-label">الوصف</label>
+          <textarea class="form-control" id="newItemDesc" rows="2" placeholder="وصف اختياري"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-light" onclick="closeModal('addItemModal')">إلغاء</button>
+      <button class="btn btn-primary" onclick="saveItem()"><i class="fas fa-save"></i> حفظ</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Item Modal -->
+<div class="modal-overlay" id="editItemModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3><i class="fas fa-edit"></i> تعديل الصنف</h3>
+      <button class="modal-close" onclick="closeModal('editItemModal')">×</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="editItemId">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+        <div class="form-group" style="grid-column:1/-1">
+          <label class="form-label">اسم الصنف</label>
+          <input type="text" class="form-control" id="editItemName">
+        </div>
+        <div class="form-group" style="grid-column:1/-1">
+          <label class="form-label">الفئة</label>
+          <select class="form-control" id="editItemCat">
+            {% for cat in categories %}<option value="{{ cat.category_id }}">{{ cat.category_name }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">سعر البيع</label>
+          <input type="number" class="form-control" id="editItemPrice" step="0.01" min="0">
+        </div>
+        <div class="form-group">
+          <label class="form-label">سعر التكلفة</label>
+          <input type="number" class="form-control" id="editItemCost" step="0.01" min="0">
+        </div>
+        <div class="form-group" style="grid-column:1/-1">
+          <label class="form-label">الوصف</label>
+          <textarea class="form-control" id="editItemDesc" rows="2"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-light" onclick="closeModal('editItemModal')">إلغاء</button>
+      <button class="btn btn-primary" onclick="updateItem()"><i class="fas fa-save"></i> حفظ</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Category Modal -->
+<div class="modal-overlay" id="addCategoryModal">
+  <div class="modal-box" style="max-width:380px">
+    <div class="modal-header">
+      <h3><i class="fas fa-folder-plus"></i> فئة جديدة</h3>
+      <button class="modal-close" onclick="closeModal('addCategoryModal')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">اسم الفئة *</label>
+        <input type="text" class="form-control" id="newCatName" placeholder="مثال: المقبلات">
+      </div>
+      <div class="form-group">
+        <label class="form-label">الوصف</label>
+        <input type="text" class="form-control" id="newCatDesc" placeholder="وصف اختياري">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-light" onclick="closeModal('addCategoryModal')">إلغاء</button>
+      <button class="btn btn-primary" onclick="saveCategory()"><i class="fas fa-save"></i> حفظ</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function filterMenu(catId, btn) {
+  document.querySelectorAll('#menuTable tbody tr').forEach(r => {
+    r.style.display = (catId === 'all' || r.dataset.cat == catId) ? '' : 'none';
+  });
+  document.querySelectorAll('.page-header ~ div .btn').forEach(b => b.classList.remove('btn-secondary'));
+  document.querySelectorAll('.page-header ~ div .btn').forEach(b => b.classList.add('btn-light'));
+  btn.classList.remove('btn-light');
+  btn.classList.add('btn-secondary');
+}
+function searchItems(val) {
+  const v = val.toLowerCase();
+  document.querySelectorAll('#menuTable tbody tr').forEach(r => {
+    r.style.display = (r.dataset.name || '').toLowerCase().includes(v) ? '' : 'none';
+  });
+}
+async function saveItem() {
+  const data = {
+    item_name: document.getElementById('newItemName').value,
+    category_id: parseInt(document.getElementById('newItemCat').value),
+    price: parseFloat(document.getElementById('newItemPrice').value),
+    cost_price: parseFloat(document.getElementById('newItemCost').value) || 0,
+    description: document.getElementById('newItemDesc').value
+  };
+  if (!data.item_name || !data.price) return showToast('يرجى ملء الحقول المطلوبة', 'warning');
+  const r = await apiPost('/menu/add_item', data);
+  if (r.success) { showToast('تم إضافة الصنف بنجاح', 'success'); setTimeout(()=>location.reload(),800); }
+  else showToast('خطأ: ' + r.error, 'error');
+}
+function editItem(id, name, catId, price, cost, desc) {
+  document.getElementById('editItemId').value = id;
+  document.getElementById('editItemName').value = name;
+  document.getElementById('editItemCat').value = catId;
+  document.getElementById('editItemPrice').value = price;
+  document.getElementById('editItemCost').value = cost;
+  document.getElementById('editItemDesc').value = desc;
+  openModal('editItemModal');
+}
+async function updateItem() {
+  const data = {
+    item_id: parseInt(document.getElementById('editItemId').value),
+    item_name: document.getElementById('editItemName').value,
+    category_id: parseInt(document.getElementById('editItemCat').value),
+    price: parseFloat(document.getElementById('editItemPrice').value),
+    cost_price: parseFloat(document.getElementById('editItemCost').value) || 0,
+    description: document.getElementById('editItemDesc').value
+  };
+  const r = await apiPost('/menu/update_item', data);
+  if (r.success) { showToast('تم التعديل بنجاح', 'success'); setTimeout(()=>location.reload(),800); }
+  else showToast('خطأ: ' + r.error, 'error');
+}
+async function toggleItem(id, btn) {
+  const r = await apiPost('/menu/toggle_item', {item_id: id});
+  if (r.success) { showToast('تم تغيير الحالة', 'success'); setTimeout(()=>location.reload(),800); }
+}
+async function deleteItem(id, btn) {
+  if (!confirm('هل أنت متأكد من الحذف؟')) return;
+  const r = await apiPost('/menu/delete_item', {item_id: id});
+  if (r.success) { btn.closest('tr').remove(); showToast('تم الحذف', 'success'); }
+}
+async function saveCategory() {
+  const data = { category_name: document.getElementById('newCatName').value, description: document.getElementById('newCatDesc').value };
+  if (!data.category_name) return showToast('يرجى إدخال اسم الفئة', 'warning');
+  const r = await apiPost('/menu/add_category', data);
+  if (r.success) { showToast('تمت إضافة الفئة', 'success'); setTimeout(()=>location.reload(),800); }
+}
+</script>
+{% endblock %}
