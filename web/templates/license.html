@@ -1,0 +1,761 @@
+{% extends "base.html" %}
+{% block title %}إدارة التراخيص{% endblock %}
+{% block page_icon %}fa-shield-alt{% endblock %}
+{% block page_title %}إدارة التراخيص والأجهزة{% endblock %}
+
+{% block extra_head %}
+<style>
+.lic-stat {
+  background: var(--card-bg);
+  border-radius: 12px;
+  padding: 18px 20px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.06);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border-right: 4px solid var(--orange);
+}
+.lic-stat.blue  { border-right-color: var(--blue); }
+.lic-stat.green { border-right-color: var(--success); }
+.lic-stat.red   { border-right-color: var(--danger); }
+.lic-stat.purple{ border-right-color: #7c3aed; }
+.lic-stat-icon {
+  width: 48px; height: 48px; border-radius: 12px;
+  background: rgba(247,148,29,.1);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px; color: var(--orange); flex-shrink: 0;
+}
+.lic-stat.blue   .lic-stat-icon { background: rgba(21,101,192,.1); color: var(--blue); }
+.lic-stat.green  .lic-stat-icon { background: rgba(40,167,69,.1); color: var(--success); }
+.lic-stat.red    .lic-stat-icon { background: rgba(220,53,69,.1); color: var(--danger); }
+.lic-stat.purple .lic-stat-icon { background: rgba(124,58,237,.1); color: #7c3aed; }
+.lic-stat-val { font-size: 22px; font-weight: 800; color: var(--text-main); }
+.lic-stat-lbl { font-size: 12px; color: var(--text-muted); font-weight: 500; }
+
+.status-banner {
+  border-radius: 12px;
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 20px;
+}
+.status-banner.active   { background: rgba(40,167,69,.1); border: 1.5px solid rgba(40,167,69,.3); color: #1a7a32; }
+.status-banner.inactive { background: rgba(220,53,69,.1); border: 1.5px solid rgba(220,53,69,.3); color: #c0392b; }
+.status-banner.warning  { background: rgba(255,193,7,.1);  border: 1.5px solid rgba(255,193,7,.4);  color: #856404; }
+.status-banner i { font-size: 20px; }
+
+.fingerprint-code {
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  background: #f0f2f5;
+  padding: 3px 8px;
+  border-radius: 6px;
+  color: #555;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-block;
+  vertical-align: middle;
+}
+.tabs { display: flex; gap: 4px; border-bottom: 2px solid var(--border); margin-bottom: 20px; }
+.tab-btn {
+  padding: 10px 18px;
+  border: none;
+  background: none;
+  font-family: 'Cairo', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  display: flex; align-items: center; gap: 6px;
+  transition: all .2s;
+}
+.tab-btn.active { color: var(--orange); border-bottom-color: var(--orange); }
+.tab-btn:hover  { color: var(--orange); }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+.device-status-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  display: inline-block; margin-left: 4px;
+}
+.dot-green { background: var(--success); box-shadow: 0 0 0 3px rgba(40,167,69,.2); }
+.dot-red   { background: var(--danger);  box-shadow: 0 0 0 3px rgba(220,53,69,.2); }
+
+.progress-bar-wrap {
+  background: #e9ecef;
+  border-radius: 20px;
+  height: 10px;
+  overflow: hidden;
+  flex: 1;
+}
+.progress-bar-fill {
+  height: 100%;
+  border-radius: 20px;
+  background: var(--success);
+  transition: width .5s;
+}
+.progress-bar-fill.warn  { background: var(--warning); }
+.progress-bar-fill.danger{ background: var(--danger); }
+
+.copy-btn {
+  background: none; border: none; cursor: pointer;
+  color: var(--text-muted); font-size: 13px; padding: 0 4px;
+  transition: color .2s;
+}
+.copy-btn:hover { color: var(--orange); }
+
+.key-display {
+  font-family: 'Courier New', monospace;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--blue);
+  background: rgba(21,101,192,.06);
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1.5px dashed var(--blue);
+}
+
+.audit-type-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+.audit-add    { background: rgba(40,167,69,.15);  color: #1a7a32; }
+.audit-remove { background: rgba(220,53,69,.15);  color: #c0392b; }
+.audit-update { background: rgba(21,101,192,.15); color: var(--blue); }
+.audit-other  { background: rgba(108,117,125,.15); color: #555; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- شريط حالة الترخيص -->
+{% if license_status.valid %}
+  {% if days_remaining is not none and days_remaining <= 30 %}
+  <div class="status-banner warning">
+    <i class="fas fa-exclamation-triangle"></i>
+    <div>
+      <strong>تحذير:</strong> ينتهي الترخيص خلال <strong>{{ days_remaining }}</strong> يوم
+      ({{ settings.license_expiry_date }}).
+    </div>
+  </div>
+  {% else %}
+  <div class="status-banner active">
+    <i class="fas fa-shield-check"></i>
+    <div>الترخيص <strong>نشط وصالح</strong> — ينتهي في {{ settings.license_expiry_date }}
+    {% if days_remaining is not none %}(متبقي {{ days_remaining }} يوم){% endif %}
+    </div>
+  </div>
+  {% endif %}
+{% else %}
+<div class="status-banner inactive">
+  <i class="fas fa-times-circle"></i>
+  <strong>{{ license_status.message }}</strong>
+</div>
+{% endif %}
+
+<!-- إحصائيات سريعة -->
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px;margin-bottom:24px;">
+  <div class="lic-stat">
+    <div class="lic-stat-icon"><i class="fas fa-desktop"></i></div>
+    <div>
+      <div class="lic-stat-val">{{ active_count }} / {{ max_devices }}</div>
+      <div class="lic-stat-lbl">الأجهزة النشطة</div>
+    </div>
+  </div>
+  <div class="lic-stat blue">
+    <div class="lic-stat-icon blue"><i class="fas fa-key"></i></div>
+    <div>
+      <div class="lic-stat-val" style="font-size:13px;letter-spacing:1px;">{{ settings.license_key or '—' }}</div>
+      <div class="lic-stat-lbl">مفتاح الترخيص</div>
+    </div>
+  </div>
+  <div class="lic-stat {% if license_status.valid %}green{% else %}red{% endif %}">
+    <div class="lic-stat-icon">
+      <i class="fas {% if license_status.valid %}fa-check-circle{% else %}fa-times-circle{% endif %}"></i>
+    </div>
+    <div>
+      <div class="lic-stat-val">{% if license_status.valid %}نشط{% else %}معطل{% endif %}</div>
+      <div class="lic-stat-lbl">حالة الترخيص</div>
+    </div>
+  </div>
+  <div class="lic-stat purple">
+    <div class="lic-stat-icon"><i class="fas fa-calendar-alt"></i></div>
+    <div>
+      <div class="lic-stat-val" style="font-size:14px;">{{ settings.license_expiry_date or '—' }}</div>
+      <div class="lic-stat-lbl">تاريخ الانتهاء</div>
+    </div>
+  </div>
+</div>
+
+<!-- شريط استهلاك الأجهزة -->
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-body" style="padding:16px 20px;">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <span style="font-size:13px;font-weight:700;white-space:nowrap;">استهلاك التراخيص:</span>
+      <div class="progress-bar-wrap">
+        {% set pct = (active_count / max_devices * 100) if max_devices > 0 else 0 %}
+        <div class="progress-bar-fill {% if pct >= 100 %}danger{% elif pct >= 80 %}warn{% endif %}"
+             style="width:{{ [pct,100]|min }}%"></div>
+      </div>
+      <span style="font-size:13px;font-weight:700;white-space:nowrap;color:{% if pct>=100 %}var(--danger){% elif pct>=80 %}var(--warning){% else %}var(--success){% endif %}">
+        {{ active_count }} / {{ max_devices }} جهاز
+      </span>
+    </div>
+  </div>
+</div>
+
+<!-- التبويبات الرئيسية -->
+<div class="card">
+  <div class="card-body">
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab('devices',this)">
+        <i class="fas fa-desktop"></i> الأجهزة المرخصة
+      </button>
+      <button class="tab-btn" onclick="switchTab('settings',this)">
+        <i class="fas fa-sliders-h"></i> إعدادات الترخيص
+      </button>
+      <button class="tab-btn" onclick="switchTab('audit',this)">
+        <i class="fas fa-history"></i> سجل العمليات
+      </button>
+      <button class="tab-btn" onclick="switchTab('report',this)">
+        <i class="fas fa-file-alt"></i> تقرير الترخيص
+      </button>
+    </div>
+
+    <!-- تبويب: الأجهزة -->
+    <div id="tab-devices" class="tab-panel active">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
+        <h3 style="font-size:15px;font-weight:700;">
+          <i class="fas fa-list" style="color:var(--orange);margin-left:6px;"></i>
+          الأجهزة المرخصة ({{ devices|length }})
+        </h3>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-primary" onclick="openModal('modal-add-device')">
+            <i class="fas fa-plus"></i> إضافة جهاز
+          </button>
+          <button class="btn btn-light" onclick="copyFingerprint()">
+            <i class="fas fa-fingerprint"></i> نسخ بصمة هذا الجهاز
+          </button>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>اسم الجهاز</th>
+              <th>البصمة</th>
+              <th>عنوان IP</th>
+              <th>الحالة</th>
+              <th>أُضيف بواسطة</th>
+              <th>آخر ظهور</th>
+              <th>تاريخ الإضافة</th>
+              <th>الإجراءات</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for d in devices %}
+            <tr id="device-row-{{ d.device_id }}">
+              <td>{{ loop.index }}</td>
+              <td><strong>{{ d.device_name }}</strong>
+                {% if d.notes %}<br><small style="color:var(--text-muted);">{{ d.notes }}</small>{% endif %}
+              </td>
+              <td>
+                <span class="fingerprint-code" title="{{ d.machine_fingerprint }}">
+                  {{ d.machine_fingerprint[:12] }}…{{ d.machine_fingerprint[-8:] }}
+                </span>
+                <button class="copy-btn" onclick="copyText('{{ d.machine_fingerprint }}')" title="نسخ البصمة">
+                  <i class="fas fa-copy"></i>
+                </button>
+              </td>
+              <td>{{ d.ip_address or '—' }}</td>
+              <td>
+                {% if d.is_active %}
+                  <span class="badge badge-success">
+                    <span class="device-status-dot dot-green"></span> نشط
+                  </span>
+                {% else %}
+                  <span class="badge badge-danger">
+                    <span class="device-status-dot dot-red"></span> معطل
+                  </span>
+                {% endif %}
+              </td>
+              <td>{{ d.added_by_name or 'النظام' }}</td>
+              <td style="font-size:12px;color:var(--text-muted);">
+                {{ d.last_seen.strftime('%Y-%m-%d %H:%M') if d.last_seen else '—' }}
+              </td>
+              <td style="font-size:12px;color:var(--text-muted);">
+                {{ d.added_at.strftime('%Y-%m-%d') if d.added_at else '—' }}
+              </td>
+              <td>
+                <div style="display:flex;gap:4px;">
+                  <button class="btn btn-sm {% if d.is_active %}btn-warning{% else %}btn-success{% endif %}"
+                          onclick="toggleDevice({{ d.device_id }}, '{{ d.device_name }}')"
+                          title="{% if d.is_active %}تعطيل{% else %}تفعيل{% endif %}">
+                    <i class="fas {% if d.is_active %}fa-toggle-off{% else %}fa-toggle-on{% endif %}"></i>
+                  </button>
+                  <button class="btn btn-sm btn-danger"
+                          onclick="deleteDevice({{ d.device_id }}, '{{ d.device_name }}')"
+                          title="حذف">
+                    <i class="fas fa-trash"></i>
+                  </button>
+                </div>
+              </td>
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="9" style="text-align:center;padding:40px;color:var(--text-muted);">
+                <i class="fas fa-desktop" style="font-size:30px;display:block;margin-bottom:8px;opacity:.3;"></i>
+                لا توجد أجهزة مسجلة حتى الآن
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- تبويب: الإعدادات -->
+    <div id="tab-settings" class="tab-panel">
+      <h3 style="font-size:15px;font-weight:700;margin-bottom:20px;">
+        <i class="fas fa-cogs" style="color:var(--orange);margin-left:6px;"></i>
+        إعدادات الترخيص
+      </h3>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
+        <div>
+          <div class="form-group">
+            <label class="form-label">مفتاح الترخيص</label>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <input type="text" class="form-control" id="s-license_key"
+                     value="{{ settings.license_key or '' }}" style="font-family:monospace;font-weight:700;letter-spacing:1px;">
+              <button class="btn btn-light btn-sm" onclick="generateKey()" title="توليد مفتاح جديد">
+                <i class="fas fa-sync-alt"></i>
+              </button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">الحد الأقصى للأجهزة المسموحة</label>
+            <input type="number" class="form-control" id="s-max_pos_devices"
+                   value="{{ settings.max_pos_devices or '5' }}" min="1" max="999">
+          </div>
+          <div class="form-group">
+            <label class="form-label">تاريخ انتهاء الترخيص</label>
+            <input type="date" class="form-control" id="s-license_expiry_date"
+                   value="{{ settings.license_expiry_date or '' }}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">اسم المطعم في الترخيص</label>
+            <input type="text" class="form-control" id="s-restaurant_name_license"
+                   value="{{ settings.restaurant_name_license or '' }}">
+          </div>
+        </div>
+        <div>
+          <div class="form-group">
+            <label class="form-label">حالة الترخيص</label>
+            <select class="form-control" id="s-is_license_active">
+              <option value="1" {% if settings.is_license_active == '1' %}selected{% endif %}>✅ نشط</option>
+              <option value="0" {% if settings.is_license_active == '0' %}selected{% endif %}>❌ معطل</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">السماح بالتسجيل التلقائي للأجهزة الجديدة</label>
+            <select class="form-control" id="s-allow_auto_register">
+              <option value="1" {% if settings.allow_auto_register == '1' %}selected{% endif %}>✅ مفعّل</option>
+              <option value="0" {% if settings.allow_auto_register == '0' %}selected{% endif %}>❌ معطل</option>
+            </select>
+          </div>
+          <div style="background:#f8f9fa;border-radius:10px;padding:16px;margin-top:8px;">
+            <p style="font-size:12px;color:var(--text-muted);margin-bottom:8px;font-weight:700;">
+              <i class="fas fa-info-circle"></i> ملاحظات:
+            </p>
+            <ul style="font-size:12px;color:var(--text-muted);padding-right:16px;line-height:1.8;">
+              <li>التسجيل التلقائي يسمح لأجهزة جديدة بالدخول ضمن الحد الأقصى.</li>
+              <li>عند تعطيل الترخيص، لن يتمكن أي مستخدم من الدخول.</li>
+              <li>تاريخ الانتهاء يُطبّق على كل الأجهزة.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:20px;display:flex;gap:10px;">
+        <button class="btn btn-primary" onclick="saveSettings()">
+          <i class="fas fa-save"></i> حفظ الإعدادات
+        </button>
+        <button class="btn btn-light" onclick="location.reload()">
+          <i class="fas fa-sync"></i> تحديث
+        </button>
+      </div>
+    </div>
+
+    <!-- تبويب: سجل العمليات -->
+    <div id="tab-audit" class="tab-panel">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+        <h3 style="font-size:15px;font-weight:700;">
+          <i class="fas fa-history" style="color:var(--orange);margin-left:6px;"></i>
+          سجل عمليات الترخيص
+        </h3>
+        <div style="display:flex;gap:8px;">
+          <input type="text" id="audit-search" class="form-control" placeholder="بحث..."
+                 style="width:200px;" oninput="filterAudit(this.value)">
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table" id="audit-table">
+          <thead>
+            <tr>
+              <th>الوقت</th>
+              <th>العملية</th>
+              <th>الجهاز</th>
+              <th>البصمة</th>
+              <th>المستخدم</th>
+              <th>IP</th>
+              <th>التفاصيل</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for a in audit %}
+            <tr>
+              <td style="font-size:12px;white-space:nowrap;">
+                {{ a.created_at.strftime('%Y-%m-%d %H:%M') if a.created_at else '—' }}
+              </td>
+              <td>
+                {% set at = a.action_type or '' %}
+                {% if 'ADD' in at or 'REGISTER' in at %}
+                  <span class="audit-type-badge audit-add">{{ at }}</span>
+                {% elif 'DELETE' in at or 'REMOVE' in at or 'DISABLE' in at %}
+                  <span class="audit-type-badge audit-remove">{{ at }}</span>
+                {% elif 'UPDATE' in at or 'ENABLE' in at or 'GENERATE' in at %}
+                  <span class="audit-type-badge audit-update">{{ at }}</span>
+                {% else %}
+                  <span class="audit-type-badge audit-other">{{ at }}</span>
+                {% endif %}
+              </td>
+              <td>{{ a.device_name or '—' }}</td>
+              <td>
+                {% if a.machine_fingerprint %}
+                  <span class="fingerprint-code" title="{{ a.machine_fingerprint }}">
+                    {{ a.machine_fingerprint[:10] }}…
+                  </span>
+                {% else %}—{% endif %}
+              </td>
+              <td>{{ a.user_name or 'النظام' }}</td>
+              <td style="font-size:11px;">{{ a.ip_address or '—' }}</td>
+              <td style="font-size:12px;color:var(--text-muted);">{{ a.details or '' }}</td>
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="7" style="text-align:center;padding:40px;color:var(--text-muted);">
+                لا توجد عمليات مسجلة
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- تبويب: تقرير الترخيص -->
+    <div id="tab-report" class="tab-panel">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+        <h3 style="font-size:15px;font-weight:700;">
+          <i class="fas fa-file-alt" style="color:var(--orange);margin-left:6px;"></i>
+          تقرير حالة الترخيص
+        </h3>
+        <button class="btn btn-secondary" onclick="printReport()">
+          <i class="fas fa-print"></i> طباعة
+        </button>
+      </div>
+      <div id="report-content" style="background:#f8f9fa;border-radius:12px;padding:24px;font-family:monospace;direction:rtl;white-space:pre-wrap;line-height:1.9;font-size:13px;">
+جارٍ تحميل التقرير...
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ────────── مودال: إضافة جهاز ────────── -->
+<div class="modal-overlay" id="modal-add-device">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3><i class="fas fa-plus-circle"></i> إضافة جهاز مرخص</h3>
+      <button class="modal-close" onclick="closeModal('modal-add-device')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="alert alert-danger" id="add-device-err" style="display:none;"></div>
+      <div class="form-group">
+        <label class="form-label">اسم الجهاز <span style="color:var(--danger)">*</span></label>
+        <input type="text" class="form-control" id="new-device-name"
+               placeholder="مثال: كاشير 1، مطبخ الرئيسي...">
+      </div>
+      <div class="form-group">
+        <label class="form-label">
+          بصمة الجهاز (Fingerprint) <span style="color:var(--danger)">*</span>
+        </label>
+        <textarea class="form-control" id="new-device-fp" rows="3"
+                  placeholder="الصق هنا البصمة المستلمة من العميل (64 حرف)..."
+                  style="font-family:monospace;font-size:12px;"></textarea>
+        <small style="color:var(--text-muted);font-size:11px;">
+          <i class="fas fa-info-circle"></i>
+          يمكن الحصول على البصمة من زر "نسخ بصمة هذا الجهاز" في الجهاز المطلوب تسجيله.
+        </small>
+      </div>
+      <div class="form-group">
+        <label class="form-label">عنوان IP (اختياري)</label>
+        <input type="text" class="form-control" id="new-device-ip"
+               placeholder="مثال: 192.168.1.10">
+      </div>
+      <div class="form-group">
+        <label class="form-label">ملاحظات (اختيارية)</label>
+        <input type="text" class="form-control" id="new-device-notes"
+               placeholder="أي ملاحظات إضافية...">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="submitAddDevice()">
+        <i class="fas fa-save"></i> حفظ الجهاز
+      </button>
+      <button class="btn btn-light" onclick="closeModal('modal-add-device')">إلغاء</button>
+    </div>
+  </div>
+</div>
+
+<!-- ────────── مودال: بصمة الجهاز الحالي ────────── -->
+<div class="modal-overlay" id="modal-my-fp">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3><i class="fas fa-fingerprint"></i> بصمة الجهاز الحالي</h3>
+      <button class="modal-close" onclick="closeModal('modal-my-fp')">✕</button>
+    </div>
+    <div class="modal-body" style="text-align:center;">
+      <p style="color:var(--text-muted);font-size:13px;margin-bottom:16px;">
+        أرسل هذه البصمة للمالك لتسجيل جهازك في النظام:
+      </p>
+      <div class="key-display" id="my-fp-display" style="word-break:break-all;text-align:center;font-size:12px;">
+        جارٍ التوليد...
+      </div>
+      <button class="btn btn-primary" style="margin-top:16px;" onclick="copyMyFP()">
+        <i class="fas fa-copy"></i> نسخ البصمة
+      </button>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// ── تبديل التبويبات ──────────────────────────────────────────────
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  btn.classList.add('active');
+  if (name === 'report') loadReport();
+}
+
+// ── إضافة جهاز ──────────────────────────────────────────────────
+async function submitAddDevice() {
+  const name = document.getElementById('new-device-name').value.trim();
+  const fp   = document.getElementById('new-device-fp').value.trim();
+  const ip   = document.getElementById('new-device-ip').value.trim();
+  const notes= document.getElementById('new-device-notes').value.trim();
+  const errEl= document.getElementById('add-device-err');
+  errEl.style.display = 'none';
+
+  if (!name || !fp) {
+    errEl.textContent = 'يرجى إدخال اسم الجهاز والبصمة.';
+    errEl.style.display = 'flex';
+    return;
+  }
+  if (fp.length < 10) {
+    errEl.textContent = 'البصمة قصيرة جداً. يجب أن تكون على الأقل 10 أحرف.';
+    errEl.style.display = 'flex';
+    return;
+  }
+
+  const res = await apiPost('/license/add_device', {
+    device_name: name, fingerprint: fp, ip_address: ip, notes
+  });
+
+  if (res.success) {
+    showToast(res.message, 'success');
+    closeModal('modal-add-device');
+    setTimeout(() => location.reload(), 1000);
+  } else {
+    errEl.textContent = res.message;
+    errEl.style.display = 'flex';
+  }
+}
+
+// ── تفعيل / تعطيل جهاز ──────────────────────────────────────────
+async function toggleDevice(id, name) {
+  if (!confirm(`هل تريد تغيير حالة الجهاز "${name}"؟`)) return;
+  const res = await apiPost('/license/toggle_device', { device_id: id });
+  if (res.success) {
+    showToast(res.message, 'success');
+    setTimeout(() => location.reload(), 800);
+  } else {
+    showToast(res.message, 'error');
+  }
+}
+
+// ── حذف جهاز ────────────────────────────────────────────────────
+async function deleteDevice(id, name) {
+  if (!confirm(`⚠️ هل أنت متأكد من حذف الجهاز "${name}" نهائياً؟\nلا يمكن التراجع عن هذا الإجراء.`)) return;
+  const res = await apiPost('/license/delete_device', { device_id: id });
+  if (res.success) {
+    showToast(res.message, 'success');
+    document.getElementById('device-row-' + id)?.remove();
+  } else {
+    showToast(res.message, 'error');
+  }
+}
+
+// ── حفظ الإعدادات ────────────────────────────────────────────────
+async function saveSettings() {
+  const data = {
+    license_key:            document.getElementById('s-license_key').value.trim(),
+    max_pos_devices:        document.getElementById('s-max_pos_devices').value,
+    license_expiry_date:    document.getElementById('s-license_expiry_date').value,
+    restaurant_name_license:document.getElementById('s-restaurant_name_license').value.trim(),
+    is_license_active:      document.getElementById('s-is_license_active').value,
+    allow_auto_register:    document.getElementById('s-allow_auto_register').value,
+  };
+  const res = await apiPost('/license/save_settings', data);
+  if (res.success) {
+    showToast(res.message, 'success');
+    setTimeout(() => location.reload(), 1200);
+  } else {
+    showToast(res.message, 'error');
+  }
+}
+
+// ── توليد مفتاح ترخيص جديد ──────────────────────────────────────
+async function generateKey() {
+  if (!confirm('توليد مفتاح ترخيص جديد؟ سيتم استبدال المفتاح الحالي.')) return;
+  const res = await apiPost('/license/generate_key', {});
+  if (res.success) {
+    document.getElementById('s-license_key').value = res.key;
+    showToast('تم توليد مفتاح جديد: ' + res.key, 'success');
+  }
+}
+
+// ── تحميل التقرير ────────────────────────────────────────────────
+async function loadReport() {
+  const el = document.getElementById('report-content');
+  try {
+    const res = await fetch('/license/report');
+    const data = await res.json();
+    const s = data.settings;
+    const lines = [
+      '━'.repeat(55),
+      `📊 تقرير حالة الترخيص — ${s.restaurant_name_license || 'مطعم إتقان'}`,
+      '━'.repeat(55),
+      '',
+      `🔑  المفتاح:           ${s.license_key || '—'}`,
+      `📅  تاريخ الانتهاء:    ${s.license_expiry_date || '—'}`,
+      `✅  الحالة:            ${data.is_license_active ? 'نشط' : 'معطل'}`,
+      `🖥️  الأجهزة المسموحة: ${data.max_devices}`,
+      `📱  الأجهزة النشطة:   ${data.active_count}`,
+      `⏱️  تاريخ التقرير:    ${data.generated_at}`,
+      '',
+      '─'.repeat(55),
+      '📋 قائمة الأجهزة:',
+      '─'.repeat(55),
+    ];
+    data.devices.forEach((d, i) => {
+      const seen = d.last_seen ? d.last_seen.substring(0,16) : '—';
+      const status = d.is_active ? '✅ نشط' : '❌ معطل';
+      lines.push(`${i+1}. ${d.device_name} — ${status}`);
+      lines.push(`   البصمة: ${d.machine_fingerprint.substring(0,20)}...`);
+      lines.push(`   آخر ظهور: ${seen}   IP: ${d.ip_address || '—'}`);
+    });
+    if (!data.devices.length) lines.push('   — لا توجد أجهزة مسجلة —');
+    lines.push('');
+    lines.push('─'.repeat(55));
+    lines.push('📝 آخر العمليات:');
+    lines.push('─'.repeat(55));
+    data.audit.slice(0,8).forEach(a => {
+      const t = a.created_at ? a.created_at.substring(0,16) : '—';
+      lines.push(`• ${t}  [${a.action_type}]  ${a.details || ''}`);
+    });
+    if (!data.audit.length) lines.push('   — لا توجد عمليات —');
+    el.textContent = lines.join('\n');
+  } catch(e) {
+    el.textContent = 'خطأ في تحميل التقرير: ' + e.message;
+  }
+}
+
+function printReport() {
+  const content = document.getElementById('report-content').innerText;
+  const w = window.open('', '_blank');
+  w.document.write(`<html><head><meta charset="UTF-8"><style>
+    body{font-family:monospace;direction:rtl;padding:30px;white-space:pre;font-size:13px;line-height:1.8;}
+    @media print{body{margin:0;}}
+  </style></head><body>${content}</body></html>`);
+  w.document.close();
+  w.print();
+}
+
+// ── نسخ النص ────────────────────────────────────────────────────
+function copyText(text) {
+  navigator.clipboard.writeText(text).then(() => showToast('تم نسخ البصمة', 'success'));
+}
+
+// ── بصمة الجهاز الحالي ──────────────────────────────────────────
+let _myFP = null;
+async function computeMyFingerprint() {
+  const components = {
+    userAgent: navigator.userAgent,
+    language:  navigator.language || '',
+    platform:  navigator.platform || '',
+    screen:    screen.width + 'x' + screen.height,
+    colorDepth:String(screen.colorDepth),
+    timezone:  Intl.DateTimeFormat().resolvedOptions().timeZone || '',
+    cores:     String(navigator.hardwareConcurrency || ''),
+    memory:    String(navigator.deviceMemory || ''),
+  };
+  const raw = Object.entries(components)
+    .sort((a,b)=>a[0].localeCompare(b[0]))
+    .map(([k,v])=>`${k}=${v}`)
+    .join('|') + '|ITQAN_2025';
+  const msgBuf = new TextEncoder().encode(raw);
+  const hashBuf = await crypto.subtle.digest('SHA-256', msgBuf);
+  return Array.from(new Uint8Array(hashBuf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+async function copyFingerprint() {
+  if (!_myFP) _myFP = await computeMyFingerprint();
+  document.getElementById('my-fp-display').textContent = _myFP;
+  openModal('modal-my-fp');
+}
+
+async function copyMyFP() {
+  if (!_myFP) _myFP = await computeMyFingerprint();
+  navigator.clipboard.writeText(_myFP).then(() => showToast('تم نسخ البصمة!', 'success'));
+}
+
+// ── فلترة سجل العمليات ──────────────────────────────────────────
+function filterAudit(q) {
+  q = q.toLowerCase();
+  document.querySelectorAll('#audit-table tbody tr').forEach(tr => {
+    tr.style.display = tr.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+}
+
+// ── تحميل تلقائي عند الفتح ───────────────────────────────────────
+document.getElementById('new-device-fp').addEventListener('input', function() {
+  this.value = this.value.trim();
+});
+</script>
+{% endblock %}

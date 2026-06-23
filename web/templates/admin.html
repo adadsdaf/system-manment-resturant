@@ -8,6 +8,7 @@
 <div style="display:flex;gap:0;margin-bottom:20px;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.06)">
   <button class="admin-tab active" onclick="switchTab('users',this)"><i class="fas fa-users"></i> المستخدمون</button>
   <button class="admin-tab" onclick="switchTab('settings',this)"><i class="fas fa-sliders-h"></i> الإعدادات العامة</button>
+  <button class="admin-tab" onclick="switchTab('printers',this)"><i class="fas fa-print"></i> الطباعة</button>
   <button class="admin-tab" onclick="switchTab('tables',this)"><i class="fas fa-table"></i> الطاولات</button>
   <button class="admin-tab" onclick="switchTab('audit',this)"><i class="fas fa-history"></i> سجل الأحداث</button>
 </div>
@@ -105,6 +106,87 @@
     {% else %}
     <div style="grid-column:1/-1;text-align:center;padding:40px;color:#888">لا توجد طاولات بعد</div>
     {% endfor %}
+  </div>
+</div>
+
+<!-- Printers Tab -->
+<div id="tab-printers" class="tab-content">
+  <div class="card">
+    <div class="card-header"><h2><i class="fas fa-print"></i> إعدادات الطباعة والفواتير</h2></div>
+    <div class="card-body">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+        {% set printerDefs = [
+          ('receipt_show_logo','إظهار الشعار في الفاتورة (1=نعم)','number'),
+          ('receipt_show_address','إظهار العنوان في الفاتورة (1=نعم)','number'),
+          ('receipt_show_phone','إظهار رقم الهاتف (1=نعم)','number'),
+          ('receipt_show_cashier','إظهار اسم الكاشير (1=نعم)','number'),
+          ('receipt_show_table','إظهار رقم الطاولة (1=نعم)','number'),
+          ('receipt_show_discount','إظهار الخصم (1=نعم)','number'),
+          ('receipt_show_tax','إظهار الضريبة (1=نعم)','number'),
+          ('receipt_show_order_no','إظهار رقم الطلب (1=نعم)','number'),
+          ('receipt_header_line1','نص الترويسة - سطر 1','text'),
+          ('receipt_header_line2','نص الترويسة - سطر 2','text'),
+          ('receipt_footer_line1','نص الذيل - سطر 1','text'),
+          ('receipt_footer_line2','نص الذيل - سطر 2','text'),
+          ('customer_copy_label','تسمية نسخة العميل','text'),
+          ('worker_copy_label','تسمية نسخة الموظف','text'),
+          ('kitchen_ticket_per_category','تذكرة مطبخ لكل تصنيف (1=نعم)','number'),
+        ] %}
+        {% for key, label, type in printerDefs %}
+        <div class="form-group">
+          <label class="form-label">{{ label }}</label>
+          <div style="display:flex;gap:8px">
+            <input type="{{ type }}" class="form-control" id="s-{{ key }}" value="{{ settings.get(key,'') }}">
+            <button class="btn btn-primary btn-sm" onclick="saveSetting('{{ key }}','s-{{ key }}')"><i class="fas fa-save"></i></button>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      <div style="margin-top:20px;padding:14px;background:#f8f9fa;border-radius:8px;border-right:4px solid #F7941D">
+        <p style="margin:0;font-size:13px;color:#555"><i class="fas fa-info-circle" style="color:#F7941D"></i> <strong>اختبار الطباعة:</strong> بعد حفظ الإعدادات، اذهب إلى نقطة البيع وأنشئ طلباً تجريبياً ثم اطبع الفاتورة من زر الطباعة في شاشة الاستلام.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <div class="card-header"><h2><i class="fas fa-link"></i> روابط الطباعة المباشرة</h2></div>
+    <div class="card-body">
+      <p style="color:#888;font-size:13px;margin-bottom:12px">يمكنك الوصول لصفحات الطباعة مباشرة عبر الروابط أدناه (استبدل رقم الطلب):</p>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;align-items:center;gap:10px;padding:10px;background:#f5f5f5;border-radius:8px">
+          <i class="fas fa-receipt" style="color:#27ae60;font-size:18px;width:24px"></i>
+          <div>
+            <div style="font-weight:700;font-size:13px">فاتورة العميل</div>
+            <code style="font-size:11px;color:#555">/print/order/&lt;رقم الطلب&gt;/customer</code>
+          </div>
+          <a href="/print/order/1/customer" target="_blank" class="btn btn-light btn-sm" style="margin-right:auto"><i class="fas fa-external-link-alt"></i> فتح</a>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;padding:10px;background:#f5f5f5;border-radius:8px">
+          <i class="fas fa-user-tie" style="color:#1565C0;font-size:18px;width:24px"></i>
+          <div>
+            <div style="font-weight:700;font-size:13px">نسخة الموظف</div>
+            <code style="font-size:11px;color:#555">/print/order/&lt;رقم الطلب&gt;/worker</code>
+          </div>
+          <a href="/print/order/1/worker" target="_blank" class="btn btn-light btn-sm" style="margin-right:auto"><i class="fas fa-external-link-alt"></i> فتح</a>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;padding:10px;background:#f5f5f5;border-radius:8px">
+          <i class="fas fa-utensils" style="color:#e74c3c;font-size:18px;width:24px"></i>
+          <div>
+            <div style="font-weight:700;font-size:13px">تذكرة المطبخ</div>
+            <code style="font-size:11px;color:#555">/print/order/&lt;رقم الطلب&gt;/kitchen</code>
+          </div>
+          <a href="/print/order/1/kitchen" target="_blank" class="btn btn-light btn-sm" style="margin-right:auto"><i class="fas fa-external-link-alt"></i> فتح</a>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;padding:10px;background:#f5f5f5;border-radius:8px">
+          <i class="fas fa-file-invoice" style="color:#9b59b6;font-size:18px;width:24px"></i>
+          <div>
+            <div style="font-weight:700;font-size:13px">فاتورة مبيعات</div>
+            <code style="font-size:11px;color:#555">/print/invoice/&lt;رقم الفاتورة&gt;/customer</code>
+          </div>
+          <a href="/print/invoice/1/customer" target="_blank" class="btn btn-light btn-sm" style="margin-right:auto"><i class="fas fa-external-link-alt"></i> فتح</a>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 

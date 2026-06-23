@@ -4,40 +4,129 @@
 {% block page_title %}التقارير والإحصائيات{% endblock %}
 {% block extra_head %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+.report-tabs { display:flex; gap:0; background:#fff; border-radius:10px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,.06); margin-bottom:20px; }
+.report-tab { padding:12px 22px; border:none; background:none; font-family:'Cairo',sans-serif; font-size:13px; font-weight:600; color:#888; cursor:pointer; border-bottom:3px solid transparent; transition:all .2s; display:flex; align-items:center; gap:6px; }
+.report-tab:hover { color:#1a2332; }
+.report-tab.active { color:#F7941D; border-bottom-color:#F7941D; }
+.tab-pane { display:none; }
+.tab-pane.active { display:block; }
+.cashier-card { background:#fff; border-radius:12px; padding:16px; box-shadow:0 2px 10px rgba(0,0,0,.07); border-right:4px solid #F7941D; margin-bottom:14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; cursor:pointer; transition:box-shadow .2s; }
+.cashier-card:hover { box-shadow:0 4px 16px rgba(0,0,0,.13); }
+.cashier-card.selected { border-right-color:#1565C0; background:#f0f5ff; }
+.cashier-name { font-size:15px; font-weight:800; color:#1a2332; }
+.cashier-meta { font-size:12px; color:#888; margin-top:2px; }
+.cashier-stat { text-align:center; }
+.cashier-stat .val { font-size:18px; font-weight:800; color:#F7941D; }
+.cashier-stat .lbl { font-size:11px; color:#888; }
+.period-bar { display:flex; gap:8px; margin-bottom:20px; align-items:center; flex-wrap:wrap; }
+</style>
 {% endblock %}
 {% block content %}
-<!-- Period Selector -->
-<div style="display:flex;gap:8px;margin-bottom:24px;align-items:center;flex-wrap:wrap">
-  <span style="font-weight:700;color:#555">الفترة:</span>
-  <button class="btn btn-secondary" onclick="loadReport('today',this)">اليوم</button>
-  <button class="btn btn-light" onclick="loadReport('week',this)">آخر 7 أيام</button>
-  <button class="btn btn-light" onclick="loadReport('month',this)">هذا الشهر</button>
-  <button class="btn btn-light btn-sm" onclick="window.print()" style="margin-right:auto"><i class="fas fa-print"></i> طباعة</button>
+
+<!-- Tab Navigation -->
+<div class="report-tabs">
+  <button class="report-tab active" onclick="switchTab('overview',this)"><i class="fas fa-chart-line"></i> نظرة عامة</button>
+  <button class="report-tab" onclick="switchTab('cashiers',this)"><i class="fas fa-user-tie"></i> أداء الكاشير</button>
+  <button class="report-tab" onclick="switchTab('items',this)"><i class="fas fa-fire"></i> الأصناف</button>
+  <button class="report-tab" onclick="switchTab('stock',this)"><i class="fas fa-boxes"></i> المخزون</button>
+  <button class="report-tab" onclick="window.print()" style="margin-right:auto;color:#666"><i class="fas fa-print"></i> طباعة</button>
 </div>
 
-<!-- Summary Cards -->
-<div class="stats-grid" id="reportStats">
-  <div class="stat-card"><div class="stat-icon"><i class="fas fa-money-bill-wave"></i></div><div class="stat-info"><div class="value" id="s-revenue">—</div><div class="label">إجمالي المبيعات</div></div></div>
-  <div class="stat-card blue"><div class="stat-icon"><i class="fas fa-shopping-bag"></i></div><div class="stat-info"><div class="value" id="s-orders">—</div><div class="label">عدد الطلبات</div></div></div>
-  <div class="stat-card green"><div class="stat-icon"><i class="fas fa-calculator"></i></div><div class="stat-info"><div class="value" id="s-avg">—</div><div class="label">متوسط الطلب</div></div></div>
-  <div class="stat-card red"><div class="stat-icon"><i class="fas fa-percent"></i></div><div class="stat-info"><div class="value" id="s-discount">—</div><div class="label">إجمالي الخصومات</div></div></div>
-</div>
-
-<div style="display:grid;grid-template-columns:2fr 1fr;gap:20px;margin-bottom:20px">
-  <!-- Sales Chart -->
-  <div class="card">
-    <div class="card-header"><h2><i class="fas fa-chart-line"></i> حركة المبيعات</h2></div>
-    <div class="card-body"><canvas id="salesChart" height="100"></canvas></div>
+<!-- ====== TAB: Overview ====== -->
+<div id="pane-overview" class="tab-pane active">
+  <div class="period-bar">
+    <span style="font-weight:700;color:#555">الفترة:</span>
+    <button class="btn btn-secondary" onclick="loadOverview('today',this)">اليوم</button>
+    <button class="btn btn-light" onclick="loadOverview('week',this)">آخر 7 أيام</button>
+    <button class="btn btn-light" onclick="loadOverview('month',this)">هذا الشهر</button>
   </div>
-  <!-- Payment Methods -->
+
+  <div class="stats-grid" id="reportStats">
+    <div class="stat-card"><div class="stat-icon"><i class="fas fa-money-bill-wave"></i></div><div class="stat-info"><div class="value" id="s-revenue">—</div><div class="label">إجمالي المبيعات</div></div></div>
+    <div class="stat-card blue"><div class="stat-icon"><i class="fas fa-shopping-bag"></i></div><div class="stat-info"><div class="value" id="s-orders">—</div><div class="label">عدد الطلبات</div></div></div>
+    <div class="stat-card green"><div class="stat-icon"><i class="fas fa-calculator"></i></div><div class="stat-info"><div class="value" id="s-avg">—</div><div class="label">متوسط الطلب</div></div></div>
+    <div class="stat-card red"><div class="stat-icon"><i class="fas fa-percent"></i></div><div class="stat-info"><div class="value" id="s-discount">—</div><div class="label">إجمالي الخصومات</div></div></div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:2fr 1fr;gap:20px;margin-bottom:20px">
+    <div class="card">
+      <div class="card-header"><h2><i class="fas fa-chart-line"></i> حركة المبيعات اليومية</h2></div>
+      <div class="card-body"><canvas id="salesChart" height="100"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><h2><i class="fas fa-credit-card"></i> طرق الدفع</h2></div>
+      <div class="card-body"><canvas id="paymentChart" height="200"></canvas></div>
+    </div>
+  </div>
+
   <div class="card">
-    <div class="card-header"><h2><i class="fas fa-credit-card"></i> طرق الدفع</h2></div>
-    <div class="card-body"><canvas id="paymentChart" height="200"></canvas></div>
+    <div class="card-header"><h2><i class="fas fa-th-list"></i> المبيعات حسب الفئة</h2></div>
+    <div class="card-body"><canvas id="categoryChart" height="80"></canvas></div>
   </div>
 </div>
 
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px">
-  <!-- Top Items -->
+<!-- ====== TAB: Cashiers ====== -->
+<div id="pane-cashiers" class="tab-pane">
+  <div class="period-bar">
+    <span style="font-weight:700;color:#555">الفترة:</span>
+    <button class="btn btn-secondary" onclick="loadCashiers('today',this)">اليوم</button>
+    <button class="btn btn-light" onclick="loadCashiers('week',this)">آخر 7 أيام</button>
+    <button class="btn btn-light" onclick="loadCashiers('month',this)">هذا الشهر</button>
+    <select class="form-control" id="cashierFilter" style="max-width:200px;margin-right:auto" onchange="applyFilter()">
+      <option value="">— كل الكاشيرية —</option>
+      {% for c in cashiers %}
+      <option value="{{ c.user_id }}">{{ c.full_name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <!-- Cashier Summary Cards -->
+  <div id="cashierCards">
+    <div style="text-align:center;padding:40px;color:#888"><i class="fas fa-spinner fa-spin fa-2x"></i><br>جاري التحميل...</div>
+  </div>
+
+  <!-- Cashier Detail (shown when one is selected) -->
+  <div id="cashierDetail" style="display:none;margin-top:20px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+      <button class="btn btn-light btn-sm" onclick="hideCashierDetail()"><i class="fas fa-arrow-right"></i> عودة</button>
+      <h3 id="detailTitle" style="margin:0;font-size:16px;color:#1a2332"></h3>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px">
+      <div class="card">
+        <div class="card-header"><h2><i class="fas fa-clock"></i> نشاط الكاشير بالساعة</h2></div>
+        <div class="card-body"><canvas id="hourlyChart" height="150"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><h2><i class="fas fa-fire"></i> أكثر الأصناف مبيعاً</h2></div>
+        <div class="card-body" style="padding:0">
+          <table class="data-table" id="cashierItemsTable">
+            <thead><tr><th>#</th><th>الصنف</th><th>الكمية</th><th>الإيراد</th></tr></thead>
+            <tbody><tr><td colspan="4" style="text-align:center;padding:20px;color:#888">جاري التحميل...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><h2><i class="fas fa-list"></i> آخر الطلبات</h2></div>
+      <div class="card-body" style="padding:0">
+        <table class="data-table" id="cashierOrdersTable">
+          <thead><tr><th>#</th><th>العميل</th><th>الطاولة</th><th>الإجمالي</th><th>طريقة الدفع</th><th>الوقت</th><th>طباعة</th></tr></thead>
+          <tbody><tr><td colspan="7" style="text-align:center;padding:20px;color:#888">جاري التحميل...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ====== TAB: Items ====== -->
+<div id="pane-items" class="tab-pane">
+  <div class="period-bar">
+    <span style="font-weight:700;color:#555">الفترة:</span>
+    <button class="btn btn-secondary" onclick="loadItems('today',this)">اليوم</button>
+    <button class="btn btn-light" onclick="loadItems('week',this)">آخر 7 أيام</button>
+    <button class="btn btn-light" onclick="loadItems('month',this)">هذا الشهر</button>
+  </div>
   <div class="card">
     <div class="card-header"><h2><i class="fas fa-fire"></i> الأصناف الأكثر مبيعاً</h2></div>
     <div class="card-body" style="padding:0">
@@ -47,42 +136,59 @@
       </table>
     </div>
   </div>
-  <!-- By Category -->
+</div>
+
+<!-- ====== TAB: Stock ====== -->
+<div id="pane-stock" class="tab-pane">
   <div class="card">
-    <div class="card-header"><h2><i class="fas fa-th-list"></i> المبيعات حسب الفئة</h2></div>
-    <div class="card-body"><canvas id="categoryChart" height="200"></canvas></div>
+    <div class="card-header"><h2><i class="fas fa-exclamation-triangle" style="color:#e74c3c"></i> تنبيهات المخزون المنخفض</h2></div>
+    <div class="card-body" style="padding:0">
+      <table class="data-table" id="lowStockTable">
+        <thead><tr><th>المادة</th><th>الوحدة</th><th>المخزون الحالي</th><th>الحد الأدنى</th><th>المورد</th></tr></thead>
+        <tbody><tr><td colspan="5" style="text-align:center;padding:20px;color:#888">جاري التحميل...</td></tr></tbody>
+      </table>
+    </div>
   </div>
 </div>
 
-<!-- Low Stock Alert -->
-<div class="card">
-  <div class="card-header"><h2><i class="fas fa-exclamation-triangle" style="color:#e74c3c"></i> تنبيهات المخزون المنخفض</h2></div>
-  <div class="card-body" style="padding:0">
-    <table class="data-table" id="lowStockTable">
-      <thead><tr><th>المادة</th><th>الوحدة</th><th>المخزون الحالي</th><th>الحد الأدنى</th><th>المورد</th></tr></thead>
-      <tbody><tr><td colspan="5" style="text-align:center;padding:20px;color:#888">جاري التحميل...</td></tr></tbody>
-    </table>
-  </div>
-</div>
 {% endblock %}
 {% block extra_scripts %}
 <script>
-let salesChart, payChart, catChart;
+let salesChart, payChart, catChart, hourlyChart;
+let currentPeriod = 'today';
+let currentCashierPeriod = 'today';
+let selectedCashierId = null;
 
-async function loadReport(period, btn) {
-  document.querySelectorAll('.page-body .btn').forEach(b => { b.classList.remove('btn-secondary'); b.classList.add('btn-light'); });
-  if(btn) { btn.classList.remove('btn-light'); btn.classList.add('btn-secondary'); }
+/* ===== Tab switching ===== */
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.report-tab').forEach(b => b.classList.remove('active'));
+  document.getElementById('pane-' + name).classList.add('active');
+  btn.classList.add('active');
+  if (name === 'cashiers') loadCashiers(currentCashierPeriod);
+  if (name === 'items') loadItems(currentPeriod);
+  if (name === 'stock') loadStock();
+}
 
+/* ===== Period button helper ===== */
+function setPeriodBtn(container, btn) {
+  container.querySelectorAll('.btn').forEach(b => { b.classList.remove('btn-secondary'); b.classList.add('btn-light'); });
+  if (btn) { btn.classList.remove('btn-light'); btn.classList.add('btn-secondary'); }
+}
+
+/* ===== Overview ===== */
+async function loadOverview(period, btn) {
+  currentPeriod = period;
+  const bar = document.querySelector('#pane-overview .period-bar');
+  if (btn) setPeriodBtn(bar, btn);
   const r = await fetch('/reports/api/summary?period=' + period);
   const data = await r.json();
   const s = data.summary;
-
-  document.getElementById('s-revenue').textContent = s.total_revenue.toFixed(0);
+  document.getElementById('s-revenue').textContent = (+s.total_revenue).toFixed(0);
   document.getElementById('s-orders').textContent = s.total_orders;
-  document.getElementById('s-avg').textContent = s.avg_order.toFixed(1);
-  document.getElementById('s-discount').textContent = s.total_discount.toFixed(0);
+  document.getElementById('s-avg').textContent = (+s.avg_order).toFixed(1);
+  document.getElementById('s-discount').textContent = (+s.total_discount).toFixed(0);
 
-  // Sales Chart
   const labels = data.daily.map(d => d.date);
   const revs = data.daily.map(d => d.revenue);
   if (salesChart) salesChart.destroy();
@@ -92,7 +198,6 @@ async function loadReport(period, btn) {
     options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } }, responsive: true }
   });
 
-  // Payment Chart
   const pmLabels = data.by_payment.map(p => ({Cash:'نقدي',Card:'بطاقة',Transfer:'تحويل'}[p.method]||p.method));
   const pmData = data.by_payment.map(p => p.revenue);
   if (payChart) payChart.destroy();
@@ -102,17 +207,6 @@ async function loadReport(period, btn) {
     options: { plugins: { legend: { position: 'bottom' } }, responsive: true }
   });
 
-  // Top Items Table
-  const tbody = document.querySelector('#topItemsTable tbody');
-  if (data.top_items.length) {
-    tbody.innerHTML = data.top_items.map((item,i) =>
-      `<tr><td>${i+1}</td><td><strong>${item.name}</strong></td><td><span class="badge badge-primary">${item.qty}</span></td><td>${item.revenue.toFixed(2)}</td></tr>`
-    ).join('');
-  } else {
-    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;color:#888">لا توجد بيانات</td></tr>';
-  }
-
-  // Category Chart
   const catLabels = data.by_category.map(c => c.name);
   const catData = data.by_category.map(c => c.revenue);
   if (catChart) catChart.destroy();
@@ -122,10 +216,34 @@ async function loadReport(period, btn) {
     options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } }, indexAxis: 'y', responsive: true }
   });
 
-  // Low Stock Table
+  loadStock(data.low_stock);
+}
+
+/* ===== Items tab ===== */
+async function loadItems(period, btn) {
+  currentPeriod = period;
+  if (btn) setPeriodBtn(document.querySelector('#pane-items .period-bar'), btn);
+  const r = await fetch('/reports/api/summary?period=' + period);
+  const data = await r.json();
+  const tbody = document.querySelector('#topItemsTable tbody');
+  if (data.top_items.length) {
+    tbody.innerHTML = data.top_items.map((item,i) =>
+      `<tr><td>${i+1}</td><td><strong>${item.name}</strong></td><td><span class="badge badge-primary">${item.qty}</span></td><td>${(+item.revenue).toFixed(2)}</td></tr>`
+    ).join('');
+  } else {
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;color:#888">لا توجد بيانات</td></tr>';
+  }
+}
+
+/* ===== Stock tab ===== */
+function loadStock(stockData) {
   const ls = document.querySelector('#lowStockTable tbody');
-  if (data.low_stock.length) {
-    ls.innerHTML = data.low_stock.map(i =>
+  if (!stockData) {
+    fetch('/reports/api/summary?period=today').then(r=>r.json()).then(d => loadStock(d.low_stock));
+    return;
+  }
+  if (stockData.length) {
+    ls.innerHTML = stockData.map(i =>
       `<tr><td><strong>${i.name}</strong></td><td>${i.unit}</td><td><strong style="color:#e74c3c">${i.current_stock}</strong></td><td>${i.minimum_stock}</td><td>${i.supplier}</td></tr>`
     ).join('');
   } else {
@@ -133,6 +251,111 @@ async function loadReport(period, btn) {
   }
 }
 
-loadReport('today', document.querySelector('.page-body .btn-secondary'));
+/* ===== Cashier Reports ===== */
+async function loadCashiers(period, btn) {
+  currentCashierPeriod = period;
+  if (btn) setPeriodBtn(document.querySelector('#pane-cashiers .period-bar'), btn);
+  const cashierId = document.getElementById('cashierFilter').value;
+  const url = `/reports/api/by_cashier?period=${period}${cashierId ? '&cashier_id='+cashierId : ''}`;
+  const r = await fetch(url);
+  const data = await r.json();
+
+  const container = document.getElementById('cashierCards');
+  if (!data.cashiers.length) {
+    container.innerHTML = '<div style="text-align:center;padding:40px;color:#888"><i class="fas fa-inbox fa-2x"></i><br>لا توجد بيانات للفترة المحددة</div>';
+    return;
+  }
+
+  container.innerHTML = data.cashiers.map(c => `
+    <div class="cashier-card ${selectedCashierId==c.user_id?'selected':''}" onclick="showCashierDetail(${c.user_id},'${c.name}')">
+      <div>
+        <div class="cashier-name"><i class="fas fa-user-circle" style="color:#F7941D"></i> ${c.name}</div>
+        <div class="cashier-meta">أول طلب: ${c.first_order ? c.first_order.substring(0,16) : '—'} | آخر طلب: ${c.last_order ? c.last_order.substring(0,16) : '—'}</div>
+      </div>
+      <div style="display:flex;gap:28px;flex-wrap:wrap">
+        <div class="cashier-stat"><div class="val">${c.orders}</div><div class="lbl">طلب</div></div>
+        <div class="cashier-stat"><div class="val">${(+c.revenue).toFixed(1)}</div><div class="lbl">إجمالي المبيعات</div></div>
+        <div class="cashier-stat"><div class="val">${(+c.avg).toFixed(1)}</div><div class="lbl">متوسط الطلب</div></div>
+        <div class="cashier-stat"><div class="val" style="color:#e74c3c">${(+c.discount).toFixed(1)}</div><div class="lbl">إجمالي الخصومات</div></div>
+      </div>
+      <div><i class="fas fa-chevron-left" style="color:#bbb"></i></div>
+    </div>
+  `).join('');
+}
+
+function applyFilter() {
+  const sel = document.getElementById('cashierFilter').value;
+  if (sel) {
+    showCashierDetail(parseInt(sel), document.getElementById('cashierFilter').options[document.getElementById('cashierFilter').selectedIndex].text);
+  } else {
+    hideCashierDetail();
+    loadCashiers(currentCashierPeriod);
+  }
+}
+
+async function showCashierDetail(userId, name) {
+  selectedCashierId = userId;
+  document.getElementById('cashierDetail').style.display = 'block';
+  document.getElementById('detailTitle').textContent = 'تقرير الكاشير: ' + name;
+  document.querySelectorAll('.cashier-card').forEach(c => c.classList.remove('selected'));
+  const url = `/reports/api/by_cashier?period=${currentCashierPeriod}&cashier_id=${userId}`;
+  const [detailRes, ordersRes] = await Promise.all([
+    fetch(url).then(r=>r.json()),
+    fetch(`/reports/api/cashier_orders?period=${currentCashierPeriod}&cashier_id=${userId}`).then(r=>r.json())
+  ]);
+
+  // Hourly chart
+  const hrs = Array.from({length:24},(_,i)=>i);
+  const hrOrders = hrs.map(h => { const f = detailRes.hourly.find(r=>r.hr===h); return f ? f.orders : 0; });
+  if (hourlyChart) hourlyChart.destroy();
+  hourlyChart = new Chart(document.getElementById('hourlyChart'), {
+    type: 'bar',
+    data: {
+      labels: hrs.map(h=>`${h}:00`),
+      datasets: [{ label: 'عدد الطلبات', data: hrOrders, backgroundColor: '#F7941D', borderRadius: 4 }]
+    },
+    options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }, responsive: true }
+  });
+
+  // Top items
+  const itemsTbody = document.querySelector('#cashierItemsTable tbody');
+  if (detailRes.top_items.length) {
+    itemsTbody.innerHTML = detailRes.top_items.map((item,i) =>
+      `<tr><td>${i+1}</td><td><strong>${item.name}</strong></td><td><span class="badge badge-primary">${item.qty}</span></td><td>${(+item.revenue).toFixed(2)}</td></tr>`
+    ).join('');
+  } else {
+    itemsTbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;color:#888">لا توجد بيانات</td></tr>';
+  }
+
+  // Orders table
+  const ordersTbody = document.querySelector('#cashierOrdersTable tbody');
+  if (ordersRes.length) {
+    ordersTbody.innerHTML = ordersRes.map(o =>
+      `<tr>
+        <td><strong>#${o.order_id}</strong></td>
+        <td>${o.customer_name||'—'}</td>
+        <td>${o.table_number||'—'}</td>
+        <td><strong>${(+o.total_amount).toFixed(2)}</strong></td>
+        <td>${{Cash:'نقدي',Card:'بطاقة',Transfer:'تحويل'}[o.payment_method]||o.payment_method}</td>
+        <td style="font-size:11px;color:#888">${o.created_at.substring(0,16)}</td>
+        <td>
+          <a href="/print/order/${o.order_id}/customer" target="_blank" class="btn btn-light btn-sm" title="طباعة للعميل"><i class="fas fa-print"></i></a>
+        </td>
+      </tr>`
+    ).join('');
+  } else {
+    ordersTbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:#888">لا توجد طلبات</td></tr>';
+  }
+
+  document.getElementById('cashierDetail').scrollIntoView({ behavior: 'smooth' });
+}
+
+function hideCashierDetail() {
+  selectedCashierId = null;
+  document.getElementById('cashierDetail').style.display = 'none';
+  document.getElementById('cashierFilter').value = '';
+}
+
+loadOverview('today', document.querySelector('#pane-overview .btn-secondary'));
 </script>
 {% endblock %}

@@ -586,9 +586,16 @@ select.form-control { cursor: pointer; }
       <a href="/sales/sessions" class="nav-item {% if request.path=='/sales/sessions' %}active{% endif %}">
         <i class="fas fa-user-clock"></i> جلسات المستخدمين
       </a>
-      <a href="/admin" class="nav-item {% if '/admin' in request.path %}active{% endif %}">
+      <a href="/admin" class="nav-item {% if request.path=='/admin' %}active{% endif %}">
         <i class="fas fa-cogs"></i> الإعدادات
       </a>
+      {% if session.get('role') in ('Owner', 'Admin') %}
+      <div class="nav-section-title">المالك</div>
+      <a href="/license" class="nav-item {% if '/license' in request.path %}active{% endif %}"
+         style="{% if session.get('role')=='Owner' %}color:var(--orange-light);{% endif %}">
+        <i class="fas fa-shield-alt"></i> إدارة التراخيص
+      </a>
+      {% endif %}
     </nav>
     <div class="sidebar-footer">
       <i class="fas fa-code"></i> إتقان سوفت للبرمجيات

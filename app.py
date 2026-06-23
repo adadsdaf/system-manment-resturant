@@ -17,6 +17,8 @@ from web.routes.suppliers_routes import suppliers_bp
 from web.routes.admin_routes import admin_bp
 from web.routes.branches_routes import branches_bp
 from web.routes.sales_routes import sales_bp
+from web.routes.license_routes import license_bp
+from web.routes.print_routes import print_bp
 
 app.register_blueprint(auth_bp)
 app.register_blueprint(dashboard_bp)
@@ -31,6 +33,8 @@ app.register_blueprint(suppliers_bp)
 app.register_blueprint(admin_bp)
 app.register_blueprint(branches_bp)
 app.register_blueprint(sales_bp)
+app.register_blueprint(license_bp)
+app.register_blueprint(print_bp)
 
 @app.route('/')
 def index():
