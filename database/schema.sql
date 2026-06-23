@@ -357,9 +357,44 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     action_time TIMESTAMP DEFAULT NOW()
 );
 
+-- ─── نظام التراخيص ─────────────────────────────────────────────
+
+-- إعدادات الترخيص
+CREATE TABLE IF NOT EXISTS license_settings (
+    setting_key VARCHAR(100) PRIMARY KEY,
+    setting_value TEXT NOT NULL DEFAULT '',
+    description TEXT DEFAULT '',
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- الأجهزة المرخصة
+CREATE TABLE IF NOT EXISTS licensed_devices (
+    device_id SERIAL PRIMARY KEY,
+    device_name VARCHAR(100) NOT NULL,
+    machine_fingerprint VARCHAR(255) UNIQUE NOT NULL,
+    ip_address VARCHAR(50) DEFAULT '',
+    is_active BOOLEAN DEFAULT TRUE,
+    added_by INTEGER REFERENCES users(user_id),
+    added_at TIMESTAMP DEFAULT NOW(),
+    last_seen TIMESTAMP DEFAULT NOW(),
+    notes TEXT DEFAULT ''
+);
+
+-- سجل عمليات الترخيص
+CREATE TABLE IF NOT EXISTS license_audit_log (
+    log_id SERIAL PRIMARY KEY,
+    action_type VARCHAR(50) NOT NULL,
+    device_name VARCHAR(100) DEFAULT '',
+    machine_fingerprint VARCHAR(255) DEFAULT '',
+    performed_by INTEGER REFERENCES users(user_id),
+    ip_address VARCHAR(50) DEFAULT '',
+    details TEXT DEFAULT '',
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
 -- ===================== البيانات الأولية =====================
 
-INSERT INTO roles (role_name) VALUES ('Admin'), ('Manager'), ('Cashier'), ('Waiter'), ('Kitchen')
+INSERT INTO roles (role_name) VALUES ('Admin'), ('Manager'), ('Cashier'), ('Waiter'), ('Kitchen'), ('Owner')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO branches (branch_code, arabic_name, foreign_name, arabic_address, phone, email, financial_year, is_main, is_active)
