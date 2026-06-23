@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>فاتورة العميل #{{ order.order_id }}</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: 'Arial', sans-serif; font-size: 12px; color: #000; background: #fff; width: 80mm; margin: 0 auto; }
+  .receipt { padding: 8px 6px; }
+  .center { text-align: center; }
+  .right { text-align: right; }
+  .bold { font-weight: bold; }
+  .big { font-size: 15px; }
+  .separator { border-top: 1px dashed #333; margin: 6px 0; }
+  .separator-double { border-top: 2px solid #333; border-bottom: 1px solid #333; margin: 6px 0; padding: 2px 0; }
+  .row { display: flex; justify-content: space-between; margin: 2px 0; }
+  .item-row { display: flex; justify-content: space-between; padding: 2px 0; border-bottom: 1px dotted #ccc; }
+  .item-name { flex: 1; }
+  .item-qty { width: 30px; text-align: center; }
+  .item-price { width: 50px; text-align: left; }
+  .total-row { display: flex; justify-content: space-between; padding: 3px 0; font-size: 13px; }
+  .grand-total { font-size: 16px; font-weight: bold; border-top: 2px solid #000; border-bottom: 2px solid #000; padding: 5px 0; margin: 4px 0; }
+  .logo-area { margin-bottom: 8px; }
+  .badge { background: #000; color: #fff; padding: 3px 8px; border-radius: 4px; font-size: 11px; display: inline-block; margin-bottom: 4px; }
+  .barcode-no { font-size: 10px; letter-spacing: 2px; color: #555; }
+  @media print {
+    body { width: 80mm; }
+    .no-print { display: none !important; }
+    @page { margin: 0; size: 80mm auto; }
+  }
+</style>
+</head>
+<body>
+<div class="receipt">
+
+  <!-- Header Buttons - No Print -->
+  <div class="no-print" style="display:flex;gap:8px;margin-bottom:12px;justify-content:center">
+    <button onclick="window.print()" style="background:#1a2332;color:#fff;border:none;padding:8px 20px;border-radius:6px;cursor:pointer;font-size:13px;font-family:Arial">🖨️ طباعة</button>
+    <button onclick="window.close()" style="background:#e74c3c;color:#fff;border:none;padding:8px 20px;border-radius:6px;cursor:pointer;font-size:13px;font-family:Arial">✕ إغلاق</button>
+  </div>
+
+  <!-- Logo & Header -->
+  {% if settings.get('receipt_show_logo','1') == '1' %}
+  <div class="logo-area center">
+    <div style="font-size:20px;font-weight:900">🍽️</div>
+  </div>
+  {% endif %}
+  
+  <div class="center">
+    <div class="bold big">{{ rest_name }}</div>
+    {% if settings.get('receipt_header_line1') %}<div>{{ settings['receipt_header_line1'] }}</div>{% endif %}
+    {% if settings.get('receipt_header_line2') %}<div>{{ settings['receipt_header_line2'] }}</div>{% endif %}
+    {% if settings.get('receipt_show_address','1')=='1' and (order.arabic_address or rest_address) %}
+    <div style="font-size:10px;color:#555">{{ order.arabic_address or rest_address }}</div>
+    {% endif %}
+    {% if settings.get('receipt_show_phone','1')=='1' %}
+    <div style="font-size:10px;color:#555">{{ order.branch_phone or rest_phone }}</div>
+    {% endif %}
+  </div>
+
+  <div class="separator"></div>
+  
+  <div class="center">
+    <span class="badge">{{ settings.get('customer_copy_label','نسخة العميل') }}</span>
+  </div>
+
+  <!-- Order Info -->
+  <div class="separator"></div>
+  
+  {% if settings.get('receipt_show_order_no','1')=='1' %}
+  <div class="row"><span>رقم الطلب:</span><span class="bold">#{{ order.order_id }}</span></div>
+  {% endif %}
+  
+  <div class="row"><span>التاريخ:</span><span>{{ order.created_at.strftime('%Y-%m-%d') if order.created_at else '' }}</span></div>
+  <div class="row"><span>الوقت:</span><span>{{ order.created_at.strftime('%H:%M') if order.created_at else '' }}</span></div>
+  
+  {% if settings.get('receipt_show_cashier','1')=='1' %}
+  <div class="row"><span>الكاشير:</span><span>{{ order.cashier_name or '' }}</span></div>
+  {% endif %}
+  
+  {% if settings.get('receipt_show_table','1')=='1' and order.table_number %}
+  <div class="row"><span>الطاولة:</span><span>{{ order.table_number }}</span></div>
+  {% endif %}
+  
+  {% if order.customer_name and order.customer_name != 'Guest' %}
+  <div class="row"><span>العميل:</span><span>{{ order.customer_name }}</span></div>
+  {% endif %}
+
+  <!-- Items -->
+  <div class="separator-double">
+    <div class="center bold" style="font-size:11px">الأصناف المطلوبة</div>
+  </div>
+  
+  <div class="row bold" style="font-size:10px;color:#555">
+    <span>الصنف</span><span>ك</span><span>السعر</span><span>الإجمالي</span>
+  </div>
+  <div class="separator"></div>
+  
+  {% for item in items %}
+  <div class="item-row">
+    <span class="item-name">{{ item.item_name }}</span>
+    <span class="item-qty">{{ item.quantity }}</span>
+    <span class="item-price">{{ "%.2f"|format(item.unit_price) }}</span>
+    <span class="item-price">{{ "%.2f"|format(item.subtotal) }}</span>
+  </div>
+  {% endfor %}
+
+  <!-- Totals -->
+  <div class="separator"></div>
+  
+  <div class="total-row"><span>المجموع:</span><span>{{ "%.2f"|format(order.subtotal) }} {{ currency }}</span></div>
+  
+  {% if settings.get('receipt_show_discount','1')=='1' and order.discount_amount and order.discount_amount > 0 %}
+  <div class="total-row" style="color:#e74c3c"><span>الخصم:</span><span>- {{ "%.2f"|format(order.discount_amount) }} {{ currency }}</span></div>
+  {% endif %}
+  
+  {% if settings.get('receipt_show_tax','1')=='1' and order.tax_amount and order.tax_amount > 0 %}
+  <div class="total-row"><span>الضريبة ({{ tax_rate }}%):</span><span>{{ "%.2f"|format(order.tax_amount) }} {{ currency }}</span></div>
+  {% endif %}
+  
+  <div class="total-row grand-total">
+    <span>الإجمالي:</span>
+    <span>{{ "%.2f"|format(order.total_amount) }} {{ currency }}</span>
+  </div>
+  
+  <div class="total-row"><span>طريقة الدفع:</span><span>{{ order.payment_method }}</span></div>
+
+  <!-- Footer -->
+  <div class="separator"></div>
+  <div class="center">
+    {% if settings.get('receipt_footer_line1') %}<div>{{ settings['receipt_footer_line1'] }}</div>{% endif %}
+    {% if settings.get('receipt_footer_line2') %}<div>{{ settings['receipt_footer_line2'] }}</div>{% endif %}
+  </div>
+  <div class="center barcode-no">{{ order.order_id|string|zfill(8) }}</div>
+  <div class="separator"></div>
+  <div class="center" style="font-size:9px;color:#aaa">Powered by إتقان سوفت</div>
+  <div style="margin-bottom: 20px"></div>
+</div>
+
+<script>
+  // Auto print on load if in popup
+  if (window.opener) {
+    setTimeout(() => window.print(), 500);
+  }
+</script>
+</body>
+</html>

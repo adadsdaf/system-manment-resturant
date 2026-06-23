@@ -568,11 +568,24 @@ select.form-control { cursor: pointer; }
       <a href="/customers" class="nav-item {% if '/customers' in request.path %}active{% endif %}">
         <i class="fas fa-users"></i> العملاء
       </a>
+      <div class="nav-section-title">إدارة المبيعات</div>
+      <a href="/sales/invoices" class="nav-item {% if request.path.startswith('/sales/invoices') %}active{% endif %}">
+        <i class="fas fa-file-invoice-dollar"></i> فواتير المبيعات
+      </a>
+      <a href="/sales/returns" class="nav-item {% if request.path.startswith('/sales/returns') %}active{% endif %}">
+        <i class="fas fa-undo-alt"></i> مردود المبيعات
+      </a>
       <div class="nav-section-title">التقارير</div>
       <a href="/reports" class="nav-item {% if '/reports' in request.path %}active{% endif %}">
         <i class="fas fa-chart-bar"></i> التقارير
       </a>
       <div class="nav-section-title">الإدارة</div>
+      <a href="/branches" class="nav-item {% if '/branches' in request.path %}active{% endif %}">
+        <i class="fas fa-code-branch"></i> الفروع
+      </a>
+      <a href="/sales/sessions" class="nav-item {% if request.path=='/sales/sessions' %}active{% endif %}">
+        <i class="fas fa-user-clock"></i> جلسات المستخدمين
+      </a>
       <a href="/admin" class="nav-item {% if '/admin' in request.path %}active{% endif %}">
         <i class="fas fa-cogs"></i> الإعدادات
       </a>

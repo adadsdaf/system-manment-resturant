@@ -1,0 +1,306 @@
+{% extends 'base.html' %}
+{% block title %}إدارة المخازن{% endblock %}
+{% block page_icon %}fa-warehouse{% endblock %}
+{% block page_title %}إدارة المخازن{% endblock %}
+{% block content %}
+
+<!-- Stats -->
+<div class="stats-grid">
+  <div class="stat-card"><div class="stat-icon"><i class="fas fa-warehouse"></i></div><div class="stat-info"><div class="value">{{ stats.total }}</div><div class="label">إجمالي المخازن</div></div></div>
+  <div class="stat-card green"><div class="stat-icon"><i class="fas fa-check-circle"></i></div><div class="stat-info"><div class="value">{{ stats.active }}</div><div class="label">المخازن النشطة</div></div></div>
+  <div class="stat-card" style="border-right-color:#F7941D"><div class="stat-icon" style="background:rgba(247,148,29,.12);color:#F7941D"><i class="fas fa-star"></i></div><div class="stat-info"><div class="value">{{ stats.main }}</div><div class="label">المخازن الرئيسية</div></div></div>
+</div>
+
+<div class="page-header">
+  <h1><i class="fas fa-warehouse"></i> بيانات المخازن</h1>
+  <button class="btn btn-primary" onclick="openModal('addWhModal')"><i class="fas fa-plus"></i> مخزن جديد</button>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <h2><i class="fas fa-list"></i> قائمة المخازن</h2>
+    <div class="search-bar" style="width:220px"><i class="fas fa-search"></i><input type="text" placeholder="بحث عن مخزن..." oninput="filterTable(this.value)"></div>
+  </div>
+  <div class="table-wrap">
+    <table class="data-table" id="whTable">
+      <thead>
+        <tr>
+          <th>الكود</th><th>اسم المخزن</th><th>الاسم الأجنبي</th><th>النوع</th>
+          <th>الفرع</th><th>المدينة</th><th>المسؤول</th><th>الحالة</th><th>إجراءات</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for w in warehouses %}
+        <tr class="wh-row" data-search="{{ w.arabic_name }} {{ w.warehouse_code }} {{ w.city }}">
+          <td><code style="background:#f0f0f0;padding:2px 8px;border-radius:4px">{{ w.warehouse_code }}</code></td>
+          <td>
+            <strong>{{ w.arabic_name }}</strong>
+            {% if w.is_main %}<span class="badge badge-primary" style="font-size:9px;margin-right:4px">رئيسي</span>{% endif %}
+          </td>
+          <td style="font-size:12px;color:#666">{{ w.foreign_name or '—' }}</td>
+          <td>
+            {% if w.warehouse_type == 'main' %}<span class="badge badge-primary">رئيسي</span>
+            {% elif w.warehouse_type == 'kitchen' %}<span class="badge badge-success">مطبخ</span>
+            {% elif w.warehouse_type == 'beverages' %}<span class="badge badge-secondary">مشروبات</span>
+            {% else %}<span class="badge badge-secondary">{{ w.warehouse_type }}</span>{% endif %}
+          </td>
+          <td>{{ w.branch_name or '—' }}</td>
+          <td>{{ w.city or '—' }}</td>
+          <td>{{ w.supervisor or '—' }}</td>
+          <td>{% if w.is_active %}<span class="badge badge-success">نشط</span>{% else %}<span class="badge badge-danger">معطل</span>{% endif %}</td>
+          <td>
+            <div style="display:flex;gap:5px">
+              <button class="btn btn-light btn-sm" title="تعديل" onclick="editWarehouse({{ w.warehouse_id }})"><i class="fas fa-edit"></i></button>
+              <button class="btn btn-danger btn-sm" title="حذف" onclick="deleteWarehouse({{ w.warehouse_id }}, this)"><i class="fas fa-trash"></i></button>
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="9" style="text-align:center;padding:40px;color:#888"><i class="fas fa-warehouse" style="font-size:30px;color:#ddd;display:block;margin-bottom:8px"></i>لا توجد مخازن — أضف مخزناً جديداً</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Add/Edit Modal -->
+<div id="addWhModal" class="modal-overlay" style="display:none">
+  <div class="modal" style="max-width:700px;width:95%">
+    <div class="modal-header">
+      <h3 id="whModalTitle"><i class="fas fa-warehouse"></i> مخزن جديد</h3>
+      <button class="modal-close" onclick="closeModal('addWhModal')">×</button>
+    </div>
+    <div class="modal-body" style="max-height:70vh;overflow-y:auto">
+      <input type="hidden" id="wh-id">
+
+      <!-- Tabs -->
+      <div style="display:flex;gap:0;margin-bottom:16px;border-bottom:2px solid #f0f0f0">
+        <button class="wh-tab active" onclick="switchWhTab('main',this)" style="padding:8px 16px;border:none;background:none;font-family:'Cairo',sans-serif;font-size:13px;font-weight:600;color:#888;cursor:pointer;border-bottom:2px solid transparent">البيانات الرئيسية</button>
+        <button class="wh-tab" onclick="switchWhTab('contact',this)" style="padding:8px 16px;border:none;background:none;font-family:'Cairo',sans-serif;font-size:13px;font-weight:600;color:#888;cursor:pointer;border-bottom:2px solid transparent">بيانات التواصل</button>
+        <button class="wh-tab" onclick="switchWhTab('financial',this)" style="padding:8px 16px;border:none;background:none;font-family:'Cairo',sans-serif;font-size:13px;font-weight:600;color:#888;cursor:pointer;border-bottom:2px solid transparent">البيانات المالية</button>
+      </div>
+
+      <!-- Main Tab -->
+      <div id="whtab-main" class="wh-tabcontent" style="display:block">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div class="form-group">
+            <label class="form-label">كود المخزن <span style="color:red">*</span></label>
+            <input class="form-control" id="wh-code" placeholder="مثال: WH001">
+          </div>
+          <div class="form-group">
+            <label class="form-label">نوع المخزن</label>
+            <select class="form-control" id="wh-type">
+              <option value="main">رئيسي</option>
+              <option value="kitchen">مطبخ</option>
+              <option value="beverages">مشروبات</option>
+              <option value="raw">مواد خام</option>
+              <option value="other">أخرى</option>
+            </select>
+          </div>
+          <div class="form-group" style="grid-column:1/-1">
+            <label class="form-label">الاسم العربي <span style="color:red">*</span></label>
+            <input class="form-control" id="wh-arabic-name" placeholder="اسم المخزن بالعربية">
+          </div>
+          <div class="form-group" style="grid-column:1/-1">
+            <label class="form-label">الاسم الأجنبي</label>
+            <input class="form-control" id="wh-foreign-name" placeholder="Warehouse name in English">
+          </div>
+          <div class="form-group">
+            <label class="form-label">الفرع</label>
+            <select class="form-control" id="wh-branch">
+              <option value="">— اختر الفرع —</option>
+              {% for b in branches %}
+              <option value="{{ b.branch_id }}">{{ b.arabic_name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">المدينة</label>
+            <input class="form-control" id="wh-city">
+          </div>
+          <div class="form-group">
+            <label class="form-label">الدولة</label>
+            <input class="form-control" id="wh-country" value="المملكة العربية السعودية">
+          </div>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:16px;margin-top:8px">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="wh-is-main"> مخزن رئيسي</label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="wh-is-principal"> المخزن الأساسي</label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="wh-is-sales"> فرع مبيعات</label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="wh-raw-materials"> يحتوي مواد خام</label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="wh-is-active" checked> نشط</label>
+        </div>
+      </div>
+
+      <!-- Contact Tab -->
+      <div id="whtab-contact" class="wh-tabcontent" style="display:none">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div class="form-group">
+            <label class="form-label">المندوب</label>
+            <input class="form-control" id="wh-delegate">
+          </div>
+          <div class="form-group">
+            <label class="form-label">المشرف / المسؤول</label>
+            <input class="form-control" id="wh-supervisor">
+          </div>
+          <div class="form-group">
+            <label class="form-label">رقم الهاتف</label>
+            <input class="form-control" id="wh-phone" type="tel">
+          </div>
+          <div class="form-group">
+            <label class="form-label">البريد الإلكتروني</label>
+            <input class="form-control" id="wh-email" type="email">
+          </div>
+          <div class="form-group" style="grid-column:1/-1">
+            <label class="form-label">العنوان التفصيلي</label>
+            <textarea class="form-control" id="wh-address" rows="2"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- Financial Tab -->
+      <div id="whtab-financial" class="wh-tabcontent" style="display:none">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div class="form-group">
+            <label class="form-label">رقم الحساب</label>
+            <input class="form-control" id="wh-account-no">
+          </div>
+          <div class="form-group">
+            <label class="form-label">الرقم الضريبي</label>
+            <input class="form-control" id="wh-tax-no">
+          </div>
+          <div class="form-group" style="grid-column:1/-1">
+            <label class="form-label">ملاحظات</label>
+            <textarea class="form-control" id="wh-notes" rows="3"></textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-light" onclick="closeModal('addWhModal')">إلغاء</button>
+      <button class="btn btn-primary" id="saveWhBtn" onclick="saveWarehouse()"><i class="fas fa-save"></i> حفظ</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function filterTable(q) {
+  q = q.toLowerCase();
+  document.querySelectorAll('.wh-row').forEach(r => {
+    r.style.display = r.dataset.search.toLowerCase().includes(q) ? '' : 'none';
+  });
+}
+
+function switchWhTab(tab, btn) {
+  document.querySelectorAll('.wh-tabcontent').forEach(t => t.style.display='none');
+  document.querySelectorAll('.wh-tab').forEach(b => { b.style.color='#888'; b.style.borderBottomColor='transparent'; });
+  document.getElementById('whtab-'+tab).style.display='block';
+  btn.style.color='#F7941D'; btn.style.borderBottomColor='#F7941D';
+}
+
+function openModal(id) { document.getElementById(id).style.display='flex'; }
+function closeModal(id) { document.getElementById(id).style.display='none'; }
+
+function editWarehouse(wid) {
+  fetch('/warehouses/get/'+wid)
+    .then(r=>r.json())
+    .then(w => {
+      document.getElementById('wh-id').value = w.warehouse_id;
+      document.getElementById('wh-code').value = w.warehouse_code || '';
+      document.getElementById('wh-arabic-name').value = w.arabic_name || '';
+      document.getElementById('wh-foreign-name').value = w.foreign_name || '';
+      document.getElementById('wh-type').value = w.warehouse_type || 'main';
+      document.getElementById('wh-branch').value = w.branch_id || '';
+      document.getElementById('wh-city').value = w.city || '';
+      document.getElementById('wh-country').value = w.country || '';
+      document.getElementById('wh-delegate').value = w.delegate || '';
+      document.getElementById('wh-supervisor').value = w.supervisor || '';
+      document.getElementById('wh-phone').value = w.phone || '';
+      document.getElementById('wh-email').value = w.email || '';
+      document.getElementById('wh-address').value = w.address || '';
+      document.getElementById('wh-account-no').value = w.account_no || '';
+      document.getElementById('wh-tax-no').value = w.tax_no || '';
+      document.getElementById('wh-notes').value = w.notes || '';
+      document.getElementById('wh-is-main').checked = w.is_main;
+      document.getElementById('wh-is-principal').checked = w.is_principal;
+      document.getElementById('wh-is-sales').checked = w.is_sales_branch;
+      document.getElementById('wh-raw-materials').checked = w.has_raw_materials;
+      document.getElementById('wh-is-active').checked = w.is_active;
+      document.getElementById('whModalTitle').innerHTML = '<i class="fas fa-edit"></i> تعديل المخزن: ' + w.arabic_name;
+      openModal('addWhModal');
+    });
+}
+
+function saveWarehouse() {
+  const wid = document.getElementById('wh-id').value;
+  const code = document.getElementById('wh-code').value.trim();
+  const name = document.getElementById('wh-arabic-name').value.trim();
+  if (!code || !name) { showAlert('الكود والاسم العربي مطلوبان', 'warning'); return; }
+  
+  const data = {
+    warehouse_id: wid || null,
+    warehouse_code: code, arabic_name: name,
+    foreign_name: document.getElementById('wh-foreign-name').value,
+    warehouse_type: document.getElementById('wh-type').value,
+    branch_id: document.getElementById('wh-branch').value || null,
+    city: document.getElementById('wh-city').value,
+    country: document.getElementById('wh-country').value,
+    delegate: document.getElementById('wh-delegate').value,
+    supervisor: document.getElementById('wh-supervisor').value,
+    phone: document.getElementById('wh-phone').value,
+    email: document.getElementById('wh-email').value,
+    address: document.getElementById('wh-address').value,
+    account_no: document.getElementById('wh-account-no').value,
+    tax_no: document.getElementById('wh-tax-no').value,
+    notes: document.getElementById('wh-notes').value,
+    is_main: document.getElementById('wh-is-main').checked,
+    is_principal: document.getElementById('wh-is-principal').checked,
+    is_sales_branch: document.getElementById('wh-is-sales').checked,
+    has_raw_materials: document.getElementById('wh-raw-materials').checked,
+    is_active: document.getElementById('wh-is-active').checked,
+  };
+
+  const url = wid ? '/warehouses/update' : '/warehouses/create';
+  const btn = document.getElementById('saveWhBtn');
+  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الحفظ...';
+  
+  fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) })
+    .then(r=>r.json())
+    .then(res => {
+      btn.disabled=false; btn.innerHTML='<i class="fas fa-save"></i> حفظ';
+      if (res.success) {
+        showAlert(wid ? 'تم تحديث بيانات المخزن بنجاح ✓' : 'تم إضافة المخزن بنجاح ✓', 'success');
+        closeModal('addWhModal');
+        setTimeout(() => location.reload(), 800);
+      } else {
+        showAlert('خطأ: ' + res.error, 'error');
+      }
+    });
+}
+
+function deleteWarehouse(wid, btn) {
+  if (!confirm('هل أنت متأكد من تعطيل هذا المخزن؟')) return;
+  btn.disabled = true;
+  fetch('/warehouses/delete', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({warehouse_id:wid}) })
+    .then(r=>r.json())
+    .then(res => {
+      if (res.success) {
+        showAlert('تم تعطيل المخزن', 'success');
+        setTimeout(() => location.reload(), 600);
+      } else {
+        btn.disabled=false;
+        showAlert('خطأ: ' + res.error, 'error');
+      }
+    });
+}
+
+function showAlert(msg, type='success') {
+  const colors = { success:'#27ae60', error:'#e74c3c', warning:'#f39c12', info:'#3498db' };
+  const el = document.createElement('div');
+  el.style.cssText = `position:fixed;top:20px;left:50%;transform:translateX(-50%);background:${colors[type]||colors.success};color:#fff;padding:12px 24px;border-radius:8px;z-index:9999;font-family:'Cairo',sans-serif;font-size:14px;box-shadow:0 4px 20px rgba(0,0,0,.2);animation:fadeInDown .3s`;
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 3500);
+}
+</script>
+{% endblock %}

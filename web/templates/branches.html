@@ -1,0 +1,256 @@
+{% extends 'base.html' %}
+{% block title %}الفروع{% endblock %}
+{% block page_icon %}fa-code-branch{% endblock %}
+{% block page_title %}إدارة الفروع{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1><i class="fas fa-code-branch"></i> إدارة الفروع</h1>
+  <button class="btn btn-primary" onclick="openAddModal()">
+    <i class="fas fa-plus"></i> إضافة فرع
+  </button>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <h2><i class="fas fa-list"></i> قائمة الفروع</h2>
+    <div class="search-bar" style="width:260px">
+      <i class="fas fa-search"></i>
+      <input type="text" id="searchInput" placeholder="بحث..." oninput="filterTable()">
+    </div>
+  </div>
+  <div class="card-body" style="padding:0">
+    <div class="table-wrap">
+      <table class="data-table" id="branchTable">
+        <thead>
+          <tr>
+            <th>كود الفرع</th>
+            <th>الاسم العربي</th>
+            <th>الاسم الأجنبي</th>
+            <th>العنوان</th>
+            <th>الهاتف</th>
+            <th>البريد</th>
+            <th>السنة المالية</th>
+            <th>رئيسي</th>
+            <th>الحالة</th>
+            <th>إجراءات</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for b in branches %}
+          <tr>
+            <td><strong>{{ b.branch_code }}</strong></td>
+            <td>{{ b.arabic_name }}</td>
+            <td>{{ b.foreign_name or '-' }}</td>
+            <td>{{ b.arabic_address or '-' }}</td>
+            <td>{{ b.phone or '-' }}</td>
+            <td>{{ b.email or '-' }}</td>
+            <td>{{ b.financial_year }}</td>
+            <td>
+              {% if b.is_main %}
+                <span class="badge badge-primary"><i class="fas fa-star"></i> رئيسي</span>
+              {% else %}
+                <span class="badge badge-secondary">فرع</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if b.is_active %}
+                <span class="badge badge-success">نشط</span>
+              {% else %}
+                <span class="badge badge-danger">غير نشط</span>
+              {% endif %}
+            </td>
+            <td>
+              <button class="btn btn-sm btn-secondary" onclick="editBranch({{ b.branch_id }})">
+                <i class="fas fa-edit"></i>
+              </button>
+              {% if not b.is_main %}
+              <button class="btn btn-sm btn-danger" onclick="deleteBranch({{ b.branch_id }}, '{{ b.arabic_name }}')">
+                <i class="fas fa-trash"></i>
+              </button>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: إضافة/تعديل فرع -->
+<div class="modal-overlay" id="branchModal">
+  <div class="modal-box" style="max-width:680px">
+    <div class="modal-header">
+      <h3><i class="fas fa-code-branch"></i> <span id="modalTitle">إضافة فرع جديد</span></h3>
+      <button class="modal-close" onclick="closeModal('branchModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="branchId">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+        <div class="form-group">
+          <label class="form-label">كود الفرع *</label>
+          <input type="text" class="form-control" id="branchCode" placeholder="001">
+        </div>
+        <div class="form-group">
+          <label class="form-label">السنة المالية</label>
+          <input type="number" class="form-control" id="financialYear" value="1" min="1">
+        </div>
+        <div class="form-group">
+          <label class="form-label">الاسم العربي *</label>
+          <input type="text" class="form-control" id="arabicName" placeholder="الفرع الرئيسي">
+        </div>
+        <div class="form-group">
+          <label class="form-label">الاسم الأجنبي</label>
+          <input type="text" class="form-control" id="foreignName" placeholder="Main Branch">
+        </div>
+        <div class="form-group">
+          <label class="form-label">العنوان العربي</label>
+          <input type="text" class="form-control" id="arabicAddress" placeholder="المملكة العربية السعودية">
+        </div>
+        <div class="form-group">
+          <label class="form-label">العنوان الأجنبي</label>
+          <input type="text" class="form-control" id="foreignAddress" placeholder="Saudi Arabia">
+        </div>
+        <div class="form-group">
+          <label class="form-label">العنوان الثاني (عربي)</label>
+          <input type="text" class="form-control" id="arabicAddress2">
+        </div>
+        <div class="form-group">
+          <label class="form-label">العنوان الثاني (أجنبي)</label>
+          <input type="text" class="form-control" id="foreignAddress2">
+        </div>
+        <div class="form-group">
+          <label class="form-label">الهاتف</label>
+          <input type="text" class="form-control" id="phone" placeholder="0500000000">
+        </div>
+        <div class="form-group">
+          <label class="form-label">الفاكس</label>
+          <input type="text" class="form-control" id="fax">
+        </div>
+        <div class="form-group">
+          <label class="form-label">صندوق البريد</label>
+          <input type="text" class="form-control" id="boxNo">
+        </div>
+        <div class="form-group">
+          <label class="form-label">البريد الإلكتروني</label>
+          <input type="email" class="form-control" id="email" placeholder="branch@restaurant.com">
+        </div>
+        <div class="form-group" style="grid-column:span 2">
+          <label class="form-label">الموقع الإلكتروني</label>
+          <input type="text" class="form-control" id="internetLocation" placeholder="www.restaurant.com">
+        </div>
+        <div class="form-group">
+          <label class="form-label">فرع رئيسي</label>
+          <select class="form-control" id="isMain">
+            <option value="false">لا</option>
+            <option value="true">نعم - رئيسي</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">الحالة</label>
+          <select class="form-control" id="isActive">
+            <option value="true">نشط</option>
+            <option value="false">غير نشط</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-light" onclick="closeModal('branchModal')">إلغاء</button>
+      <button class="btn btn-primary" onclick="saveBranch()">
+        <i class="fas fa-save"></i> حفظ
+      </button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function filterTable() {
+  const q = document.getElementById('searchInput').value.toLowerCase();
+  document.querySelectorAll('#branchTable tbody tr').forEach(r => {
+    r.style.display = r.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+}
+function openAddModal() {
+  document.getElementById('modalTitle').textContent = 'إضافة فرع جديد';
+  document.getElementById('branchId').value = '';
+  ['branchCode','arabicName','foreignName','arabicAddress','foreignAddress',
+   'arabicAddress2','foreignAddress2','phone','fax','boxNo','email','internetLocation'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('financialYear').value = 1;
+  document.getElementById('isMain').value = 'false';
+  document.getElementById('isActive').value = 'true';
+  openModal('branchModal');
+}
+async function editBranch(id) {
+  const res = await fetch('/branches/get/' + id);
+  const b = await res.json();
+  document.getElementById('modalTitle').textContent = 'تعديل بيانات الفرع';
+  document.getElementById('branchId').value = b.branch_id;
+  document.getElementById('branchCode').value = b.branch_code || '';
+  document.getElementById('arabicName').value = b.arabic_name || '';
+  document.getElementById('foreignName').value = b.foreign_name || '';
+  document.getElementById('arabicAddress').value = b.arabic_address || '';
+  document.getElementById('foreignAddress').value = b.foreign_address || '';
+  document.getElementById('arabicAddress2').value = b.arabic_address2 || '';
+  document.getElementById('foreignAddress2').value = b.foreign_address2 || '';
+  document.getElementById('phone').value = b.phone || '';
+  document.getElementById('fax').value = b.fax || '';
+  document.getElementById('boxNo').value = b.box_no || '';
+  document.getElementById('email').value = b.email || '';
+  document.getElementById('internetLocation').value = b.internet_location || '';
+  document.getElementById('financialYear').value = b.financial_year || 1;
+  document.getElementById('isMain').value = b.is_main ? 'true' : 'false';
+  document.getElementById('isActive').value = b.is_active ? 'true' : 'false';
+  openModal('branchModal');
+}
+async function saveBranch() {
+  const id = document.getElementById('branchId').value;
+  const data = {
+    branch_id: id ? parseInt(id) : null,
+    branch_code: document.getElementById('branchCode').value.trim(),
+    arabic_name: document.getElementById('arabicName').value.trim(),
+    foreign_name: document.getElementById('foreignName').value.trim(),
+    arabic_address: document.getElementById('arabicAddress').value.trim(),
+    foreign_address: document.getElementById('foreignAddress').value.trim(),
+    arabic_address2: document.getElementById('arabicAddress2').value.trim(),
+    foreign_address2: document.getElementById('foreignAddress2').value.trim(),
+    phone: document.getElementById('phone').value.trim(),
+    fax: document.getElementById('fax').value.trim(),
+    box_no: document.getElementById('boxNo').value.trim(),
+    email: document.getElementById('email').value.trim(),
+    internet_location: document.getElementById('internetLocation').value.trim(),
+    financial_year: parseInt(document.getElementById('financialYear').value) || 1,
+    is_main: document.getElementById('isMain').value === 'true',
+    is_active: document.getElementById('isActive').value === 'true'
+  };
+  if (!data.branch_code || !data.arabic_name) {
+    showToast('الرجاء إدخال كود الفرع والاسم العربي', 'error');
+    return;
+  }
+  const url = id ? '/branches/update' : '/branches/create';
+  const res = await apiPost(url, data);
+  if (res.success) {
+    showToast(id ? 'تم تحديث الفرع بنجاح' : 'تم إضافة الفرع بنجاح');
+    setTimeout(() => location.reload(), 1000);
+    closeModal('branchModal');
+  } else {
+    showToast(res.error || 'حدث خطأ', 'error');
+  }
+}
+async function deleteBranch(id, name) {
+  if (!confirm(`هل تريد تعطيل الفرع: ${name}؟`)) return;
+  const res = await apiPost('/branches/delete', { branch_id: id });
+  if (res.success) {
+    showToast('تم تعطيل الفرع');
+    setTimeout(() => location.reload(), 1000);
+  } else {
+    showToast(res.error || 'حدث خطأ', 'error');
+  }
+}
+</script>
+{% endblock %}

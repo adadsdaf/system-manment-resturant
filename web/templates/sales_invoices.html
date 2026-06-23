@@ -1,0 +1,514 @@
+{% extends 'base.html' %}
+{% block title %}فواتير المبيعات{% endblock %}
+{% block page_icon %}fa-file-invoice-dollar{% endblock %}
+{% block page_title %}فواتير المبيعات{% endblock %}
+
+{% block extra_head %}
+<style>
+.inv-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:10px; }
+.items-table { width:100%; border-collapse:collapse; font-size:13px; }
+.items-table th { background:#f8f9fa; padding:8px 10px; text-align:right; font-size:11px; color:var(--text-muted); border:1px solid var(--border); }
+.items-table td { padding:7px 10px; border:1px solid var(--border); vertical-align:middle; }
+.items-table input, .items-table select { width:100%; border:none; background:transparent; font-family:'Cairo',sans-serif; font-size:13px; padding:2px 4px; }
+.items-table input:focus, .items-table select:focus { outline:1px solid var(--orange); border-radius:3px; }
+.totals-row { background:#f8f9fa; font-weight:700; }
+.status-badge { padding:4px 12px; border-radius:20px; font-size:11px; font-weight:700; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1><i class="fas fa-file-invoice-dollar"></i> فواتير المبيعات</h1>
+  <button class="btn btn-primary" onclick="openNewInvoice()">
+    <i class="fas fa-plus"></i> فاتورة جديدة
+  </button>
+</div>
+
+<!-- قائمة الفواتير -->
+<div class="card">
+  <div class="card-header">
+    <h2><i class="fas fa-list"></i> قائمة الفواتير</h2>
+    <div class="search-bar" style="width:260px">
+      <i class="fas fa-search"></i>
+      <input type="text" id="searchInput" placeholder="بحث برقم الفاتورة أو العميل..." oninput="filterTable()">
+    </div>
+  </div>
+  <div class="card-body" style="padding:0">
+    <div class="table-wrap">
+      <table class="data-table" id="invTable">
+        <thead>
+          <tr>
+            <th>رقم الفاتورة</th>
+            <th>التاريخ</th>
+            <th>العميل</th>
+            <th>الفرع</th>
+            <th>طريقة الدفع</th>
+            <th>المجموع</th>
+            <th>المدفوع</th>
+            <th>المتبقي</th>
+            <th>الحالة</th>
+            <th>إجراءات</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for inv in invoices %}
+          <tr>
+            <td><strong style="color:var(--blue)">{{ inv.invoice_no }}</strong></td>
+            <td>{{ inv.invoice_date }}</td>
+            <td>{{ inv.customer_name or inv.cust_name or '-' }}</td>
+            <td>{{ inv.branch_name or '-' }}</td>
+            <td>{{ inv.payment_method }}</td>
+            <td><strong>{{ "%.2f"|format(inv.total_amount or 0) }} {{ currency }}</strong></td>
+            <td>{{ "%.2f"|format(inv.paid_amount or 0) }}</td>
+            <td style="color:{% if (inv.remaining_amount or 0) > 0 %}var(--danger){% else %}var(--success){% endif %}">
+              {{ "%.2f"|format(inv.remaining_amount or 0) }}
+            </td>
+            <td>
+              {% if inv.status == 'مكتملة' %}
+                <span class="badge badge-success">مكتملة</span>
+              {% elif inv.status == 'معلقة' %}
+                <span class="badge badge-warning">معلقة</span>
+              {% else %}
+                <span class="badge badge-secondary">{{ inv.status }}</span>
+              {% endif %}
+            </td>
+            <td>
+              <button class="btn btn-sm btn-secondary" onclick="viewInvoice({{ inv.invoice_id }})">
+                <i class="fas fa-eye"></i>
+              </button>
+              {% if session.get('role') in ['Admin','Manager'] %}
+              <button class="btn btn-sm btn-danger" onclick="deleteInvoice({{ inv.invoice_id }}, '{{ inv.invoice_no }}')">
+                <i class="fas fa-trash"></i>
+              </button>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="10" style="text-align:center;padding:40px;color:var(--text-muted)">
+              <i class="fas fa-file-invoice fa-2x" style="display:block;margin-bottom:10px"></i>
+              لا توجد فواتير مبيعات بعد
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: فاتورة جديدة -->
+<div class="modal-overlay" id="invoiceModal">
+  <div class="modal-box" style="max-width:900px">
+    <div class="modal-header">
+      <h3><i class="fas fa-file-invoice-dollar"></i> فاتورة مبيعات جديدة</h3>
+      <button class="modal-close" onclick="closeModal('invoiceModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+
+      <!-- البيانات الأساسية -->
+      <div style="background:#f8f9fa;border-radius:8px;padding:14px;margin-bottom:14px">
+        <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:10px;text-transform:uppercase">البيانات الأساسية</div>
+        <div class="inv-grid">
+          <div class="form-group" style="margin:0">
+            <label class="form-label">رقم الفاتورة</label>
+            <input type="text" class="form-control" id="invNo" value="{{ next_no }}" style="font-weight:700;color:var(--blue)">
+          </div>
+          <div class="form-group" style="margin:0">
+            <label class="form-label">التاريخ</label>
+            <input type="date" class="form-control" id="invDate" value="{{ today }}">
+          </div>
+          <div class="form-group" style="margin:0">
+            <label class="form-label">نوع الفاتورة</label>
+            <select class="form-control" id="invType">
+              <option>فاتورة مبيعات</option>
+              <option>فاتورة نقدية</option>
+              <option>فاتورة آجلة</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin:0">
+            <label class="form-label">نوع الدفع</label>
+            <select class="form-control" id="payType">
+              <option>آجل</option>
+              <option>نقدي</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin:0">
+            <label class="form-label">طريقة الدفع</label>
+            <select class="form-control" id="payMethod">
+              <option>نقدي</option>
+              <option>بطاقة</option>
+              <option>تحويل</option>
+              <option>آجل</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin:0">
+            <label class="form-label">رقم المخزن</label>
+            <input type="text" class="form-control" id="storeNo" placeholder="01">
+          </div>
+        </div>
+      </div>
+
+      <!-- بيانات العميل -->
+      <div style="background:#f8f9fa;border-radius:8px;padding:14px;margin-bottom:14px">
+        <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:10px;text-transform:uppercase">بيانات العميل</div>
+        <div class="inv-grid">
+          <div class="form-group" style="margin:0">
+            <label class="form-label">العميل</label>
+            <select class="form-control" id="customerId" onchange="fillCustomer()">
+              <option value="">-- اختر عميل --</option>
+              {% for c in customers %}
+              <option value="{{ c.customer_id }}" data-name="{{ c.full_name }}">{{ c.full_name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group" style="margin:0">
+            <label class="form-label">اسم العميل</label>
+            <input type="text" class="form-control" id="customerName" placeholder="اسم العميل">
+          </div>
+          <div class="form-group" style="margin:0">
+            <label class="form-label">الفرع</label>
+            <select class="form-control" id="branchId">
+              {% for b in branches %}
+              <option value="{{ b.branch_id }}" {% if b.branch_id == session.get('branch_id') %}selected{% endif %}>{{ b.arabic_name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group" style="margin:0">
+            <label class="form-label">نوع السعر</label>
+            <select class="form-control" id="priceType">
+              <option>سعر البيع</option>
+              <option>سعر الجملة</option>
+              <option>سعر خاص</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin:0">
+            <label class="form-label">اسم البائع</label>
+            <input type="text" class="form-control" id="salesmanName">
+          </div>
+          <div class="form-group" style="margin:0">
+            <label class="form-label">عمولة البائع %</label>
+            <input type="number" class="form-control" id="salesmanComm" value="0" min="0" step="0.01">
+          </div>
+        </div>
+      </div>
+
+      <!-- جدول البنود -->
+      <div style="margin-bottom:14px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <div style="font-size:13px;font-weight:700">بنود الفاتورة</div>
+          <button class="btn btn-sm btn-primary" onclick="addInvItem()">
+            <i class="fas fa-plus"></i> إضافة صنف
+          </button>
+        </div>
+        <div class="table-wrap">
+          <table class="items-table">
+            <thead>
+              <tr>
+                <th style="width:30px">#</th>
+                <th>الصنف</th>
+                <th style="width:80px">الكمية</th>
+                <th style="width:70px">الوحدة</th>
+                <th style="width:90px">السعر</th>
+                <th style="width:70px">خصم %</th>
+                <th style="width:70px">ضريبة %</th>
+                <th style="width:100px">الإجمالي</th>
+                <th style="width:30px"></th>
+              </tr>
+            </thead>
+            <tbody id="invItems">
+              <tr id="emptyRow">
+                <td colspan="9" style="text-align:center;padding:20px;color:var(--text-muted)">
+                  اضغط "+ إضافة صنف" لإضافة منتج
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- الإجماليات -->
+      <div style="display:flex;justify-content:flex-end">
+        <div style="background:#f8f9fa;border-radius:8px;padding:14px;min-width:280px;border:1px solid var(--border)">
+          <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:13px">
+            <span style="color:var(--text-muted)">المجموع الفرعي:</span>
+            <strong id="subtotalDisplay">0.00 {{ currency }}</strong>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:13px">
+            <span style="color:var(--text-muted)">الضريبة ({{ tax_rate }}%):</span>
+            <strong id="taxDisplay">0.00 {{ currency }}</strong>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:13px">
+            <span style="color:var(--text-muted)">الخصم:</span>
+            <strong id="discountDisplay">0.00 {{ currency }}</strong>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:15px;border-top:2px solid var(--border);padding-top:8px;margin-top:8px">
+            <span style="font-weight:700">الإجمالي النهائي:</span>
+            <strong style="color:var(--orange);font-size:17px" id="totalDisplay">0.00 {{ currency }}</strong>
+          </div>
+          <div style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <div>
+              <label class="form-label">المدفوع</label>
+              <input type="number" class="form-control" id="paidAmount" value="0" oninput="updateRemaining()">
+            </div>
+            <div>
+              <label class="form-label">المتبقي</label>
+              <input type="number" class="form-control" id="remainingAmount" value="0" readonly style="background:#f8f9fa">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-group" style="margin-top:10px">
+        <label class="form-label">ملاحظات</label>
+        <textarea class="form-control" id="invNotes" rows="2" placeholder="ملاحظات اختيارية..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-light" onclick="closeModal('invoiceModal')">إلغاء</button>
+      <button class="btn btn-primary" onclick="saveInvoice()">
+        <i class="fas fa-save"></i> حفظ الفاتورة
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: عرض الفاتورة -->
+<div class="modal-overlay" id="viewModal">
+  <div class="modal-box" style="max-width:700px">
+    <div class="modal-header">
+      <h3><i class="fas fa-eye"></i> تفاصيل الفاتورة</h3>
+      <button class="modal-close" onclick="closeModal('viewModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body" id="viewContent">...</div>
+    <div class="modal-footer">
+      <button class="btn btn-light" onclick="closeModal('viewModal')">إغلاق</button>
+      <button class="btn btn-secondary" onclick="window.print()"><i class="fas fa-print"></i> طباعة</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const menuItems = {{ menu_items | tojson }};
+const TAX_RATE = {{ tax_rate }};
+const CURRENCY = '{{ currency }}';
+let rowCount = 0;
+
+function filterTable() {
+  const q = document.getElementById('searchInput').value.toLowerCase();
+  document.querySelectorAll('#invTable tbody tr').forEach(r => {
+    r.style.display = r.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+}
+function fillCustomer() {
+  const sel = document.getElementById('customerId');
+  const opt = sel.selectedOptions[0];
+  if (opt && opt.dataset.name) {
+    document.getElementById('customerName').value = opt.dataset.name;
+  }
+}
+function openNewInvoice() {
+  document.getElementById('invItems').innerHTML = '<tr id="emptyRow"><td colspan="9" style="text-align:center;padding:20px;color:var(--text-muted)">اضغط "+ إضافة صنف" لإضافة منتج</td></tr>';
+  rowCount = 0;
+  recalculate();
+  openModal('invoiceModal');
+}
+function addInvItem() {
+  const emptyRow = document.getElementById('emptyRow');
+  if (emptyRow) emptyRow.remove();
+  rowCount++;
+  const rid = 'r' + rowCount;
+  const opts = menuItems.map(m => `<option value="${m.item_id}" data-price="${m.price}">${m.item_name}</option>`).join('');
+  const tr = document.createElement('tr');
+  tr.id = rid;
+  tr.innerHTML = `
+    <td>${rowCount}</td>
+    <td>
+      <select onchange="fillPrice('${rid}')">
+        <option value="">-- اختر صنف --</option>
+        ${opts}
+      </select>
+    </td>
+    <td><input type="number" value="1" min="0.001" step="0.001" oninput="rowCalc('${rid}')"></td>
+    <td><input type="text" value="وحدة"></td>
+    <td><input type="number" value="0" step="0.01" oninput="rowCalc('${rid}')"></td>
+    <td><input type="number" value="0" step="0.01" oninput="rowCalc('${rid}')"></td>
+    <td><input type="number" value="${TAX_RATE}" step="0.01" oninput="rowCalc('${rid}')"></td>
+    <td><strong class="row-total">0.00</strong></td>
+    <td><button class="btn btn-sm btn-danger" onclick="removeRow('${rid}')"><i class="fas fa-times"></i></button></td>
+  `;
+  document.getElementById('invItems').appendChild(tr);
+}
+function fillPrice(rid) {
+  const tr = document.getElementById(rid);
+  const sel = tr.querySelector('select');
+  const opt = sel.selectedOptions[0];
+  if (opt && opt.dataset.price) {
+    tr.querySelectorAll('input')[2].value = opt.dataset.price;
+    rowCalc(rid);
+  }
+}
+function rowCalc(rid) {
+  const tr = document.getElementById(rid);
+  const inputs = tr.querySelectorAll('input');
+  const qty = parseFloat(inputs[0].value) || 0;
+  const price = parseFloat(inputs[2].value) || 0;
+  const disc = parseFloat(inputs[3].value) || 0;
+  const tax = parseFloat(inputs[4].value) || 0;
+  const sub = qty * price;
+  const discAmt = sub * disc / 100;
+  const taxAmt = (sub - discAmt) * tax / 100;
+  const total = sub - discAmt + taxAmt;
+  tr.querySelector('.row-total').textContent = total.toFixed(2);
+  recalculate();
+}
+function removeRow(rid) {
+  document.getElementById(rid).remove();
+  recalculate();
+}
+function recalculate() {
+  let sub = 0, tax = 0, disc = 0;
+  document.querySelectorAll('#invItems tr[id^="r"]').forEach(tr => {
+    const inputs = tr.querySelectorAll('input');
+    if (inputs.length < 5) return;
+    const qty = parseFloat(inputs[0].value) || 0;
+    const price = parseFloat(inputs[2].value) || 0;
+    const discPct = parseFloat(inputs[3].value) || 0;
+    const taxPct = parseFloat(inputs[4].value) || 0;
+    const rowSub = qty * price;
+    const rowDisc = rowSub * discPct / 100;
+    const rowTax = (rowSub - rowDisc) * taxPct / 100;
+    sub += rowSub;
+    disc += rowDisc;
+    tax += rowTax;
+  });
+  const total = sub - disc + tax;
+  document.getElementById('subtotalDisplay').textContent = sub.toFixed(2) + ' ' + CURRENCY;
+  document.getElementById('taxDisplay').textContent = tax.toFixed(2) + ' ' + CURRENCY;
+  document.getElementById('discountDisplay').textContent = disc.toFixed(2) + ' ' + CURRENCY;
+  document.getElementById('totalDisplay').textContent = total.toFixed(2) + ' ' + CURRENCY;
+  updateRemaining();
+}
+function updateRemaining() {
+  const totalText = document.getElementById('totalDisplay').textContent;
+  const total = parseFloat(totalText) || 0;
+  const paid = parseFloat(document.getElementById('paidAmount').value) || 0;
+  document.getElementById('remainingAmount').value = (total - paid).toFixed(2);
+}
+async function saveInvoice() {
+  const items = [];
+  let hasError = false;
+  document.querySelectorAll('#invItems tr[id^="r"]').forEach((tr, idx) => {
+    const sel = tr.querySelector('select');
+    const inputs = tr.querySelectorAll('input');
+    if (!sel || !sel.value) return;
+    const qty = parseFloat(inputs[0].value) || 0;
+    const price = parseFloat(inputs[2].value) || 0;
+    const discPct = parseFloat(inputs[3].value) || 0;
+    const taxPct = parseFloat(inputs[4].value) || 0;
+    const rowSub = qty * price;
+    const rowDisc = rowSub * discPct / 100;
+    const rowTax = (rowSub - rowDisc) * taxPct / 100;
+    items.push({
+      menu_item_id: parseInt(sel.value),
+      item_name: sel.selectedOptions[0]?.text || '',
+      item_code: '',
+      quantity: qty,
+      unit: inputs[1].value,
+      unit_price: price,
+      discount_pct: discPct,
+      tax_pct: taxPct,
+      subtotal: rowSub - rowDisc + rowTax
+    });
+  });
+  if (items.length === 0) { showToast('الرجاء إضافة صنف واحد على الأقل', 'error'); return; }
+  const totalText = document.getElementById('totalDisplay').textContent;
+  const total = parseFloat(totalText) || 0;
+  const subtotalText = document.getElementById('subtotalDisplay').textContent;
+  const sub = parseFloat(subtotalText) || 0;
+  const taxText = document.getElementById('taxDisplay').textContent;
+  const taxAmt = parseFloat(taxText) || 0;
+  const discText = document.getElementById('discountDisplay').textContent;
+  const discAmt = parseFloat(discText) || 0;
+  const paid = parseFloat(document.getElementById('paidAmount').value) || 0;
+  const data = {
+    invoice_no: document.getElementById('invNo').value,
+    invoice_date: document.getElementById('invDate').value,
+    invoice_type: document.getElementById('invType').value,
+    payment_type: document.getElementById('payType').value,
+    payment_method: document.getElementById('payMethod').value,
+    store_no: document.getElementById('storeNo').value,
+    customer_id: document.getElementById('customerId').value || null,
+    customer_name: document.getElementById('customerName').value,
+    branch_id: document.getElementById('branchId').value || null,
+    price_type: document.getElementById('priceType').value,
+    salesman_name: document.getElementById('salesmanName').value,
+    salesman_commission: parseFloat(document.getElementById('salesmanComm').value) || 0,
+    subtotal: sub, tax_pct: TAX_RATE, tax_amount: taxAmt,
+    discount_amount: discAmt, total_amount: total,
+    paid_amount: paid, remaining_amount: total - paid,
+    notes: document.getElementById('invNotes').value,
+    status: 'مكتملة', items
+  };
+  const res = await apiPost('/sales/invoices/create', data);
+  if (res.success) {
+    showToast('تم حفظ الفاتورة: ' + res.invoice_no);
+    setTimeout(() => location.reload(), 1200);
+    closeModal('invoiceModal');
+  } else {
+    showToast(res.error || 'حدث خطأ', 'error');
+  }
+}
+async function viewInvoice(id) {
+  const res = await fetch('/sales/invoices/' + id);
+  const data = await res.json();
+  const inv = data.invoice;
+  const items = data.items;
+  let itemsHtml = items.map((it,i) => `
+    <tr>
+      <td>${i+1}</td>
+      <td>${it.item_name}</td>
+      <td>${it.quantity}</td>
+      <td>${it.unit || ''}</td>
+      <td>${parseFloat(it.unit_price||0).toFixed(2)}</td>
+      <td>${it.discount_pct||0}%</td>
+      <td>${it.tax_pct||0}%</td>
+      <td><strong>${parseFloat(it.subtotal||0).toFixed(2)}</strong></td>
+    </tr>`).join('');
+  document.getElementById('viewContent').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+      <div><strong>رقم الفاتورة:</strong> ${inv.invoice_no}</div>
+      <div><strong>التاريخ:</strong> ${inv.invoice_date}</div>
+      <div><strong>العميل:</strong> ${inv.customer_name || '-'}</div>
+      <div><strong>طريقة الدفع:</strong> ${inv.payment_method}</div>
+      <div><strong>الحالة:</strong> ${inv.status}</div>
+      <div><strong>المبلغ الإجمالي:</strong> <strong style="color:var(--orange)">${parseFloat(inv.total_amount||0).toFixed(2)} ${CURRENCY}</strong></div>
+    </div>
+    <table class="items-table">
+      <thead><tr><th>#</th><th>الصنف</th><th>الكمية</th><th>الوحدة</th><th>السعر</th><th>خصم</th><th>ضريبة</th><th>الإجمالي</th></tr></thead>
+      <tbody>${itemsHtml || '<tr><td colspan="8" style="text-align:center">لا توجد بنود</td></tr>'}</tbody>
+    </table>
+    <div style="text-align:left;margin-top:10px;font-size:13px">
+      <div>الإجمالي الفرعي: ${parseFloat(inv.subtotal||0).toFixed(2)}</div>
+      <div>الضريبة: ${parseFloat(inv.tax_amount||0).toFixed(2)}</div>
+      <div>الخصم: ${parseFloat(inv.discount_amount||0).toFixed(2)}</div>
+      <div style="font-size:15px;font-weight:700;color:var(--orange)">الإجمالي: ${parseFloat(inv.total_amount||0).toFixed(2)} ${CURRENCY}</div>
+    </div>
+    ${inv.notes ? '<div style="margin-top:10px;padding:8px;background:#f8f9fa;border-radius:6px;font-size:13px">ملاحظات: '+inv.notes+'</div>' : ''}
+  `;
+  openModal('viewModal');
+}
+async function deleteInvoice(id, no) {
+  if (!confirm('حذف الفاتورة ' + no + '؟')) return;
+  const res = await apiPost('/sales/invoices/delete', { invoice_id: id });
+  if (res.success) {
+    showToast('تم الحذف');
+    setTimeout(() => location.reload(), 1000);
+  } else {
+    showToast(res.error || 'خطأ', 'error');
+  }
+}
+</script>
+{% endblock %}

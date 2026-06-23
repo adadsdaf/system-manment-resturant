@@ -1,0 +1,489 @@
+{% extends 'base.html' %}
+{% block title %}مردود المبيعات{% endblock %}
+{% block page_icon %}fa-undo-alt{% endblock %}
+{% block page_title %}فواتير مردود المبيعات{% endblock %}
+
+{% block extra_head %}
+<style>
+.inv-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:10px; }
+.items-table { width:100%; border-collapse:collapse; font-size:13px; }
+.items-table th { background:#f8f9fa; padding:8px 10px; text-align:right; font-size:11px; color:var(--text-muted); border:1px solid var(--border); }
+.items-table td { padding:7px 10px; border:1px solid var(--border); vertical-align:middle; }
+.items-table input, .items-table select { width:100%; border:none; background:transparent; font-family:'Cairo',sans-serif; font-size:13px; padding:2px 4px; }
+.items-table input:focus { outline:1px solid var(--orange); border-radius:3px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1><i class="fas fa-undo-alt"></i> فواتير مردود المبيعات</h1>
+  <button class="btn btn-primary" onclick="openNewReturn()">
+    <i class="fas fa-plus"></i> مردود جديد
+  </button>
+</div>
+
+<!-- إحصائيات -->
+<div class="stats-grid" style="margin-bottom:20px">
+  <div class="stat-card">
+    <div class="stat-icon"><i class="fas fa-file-invoice"></i></div>
+    <div class="stat-info">
+      <div class="value">{{ returns|length }}</div>
+      <div class="label">إجمالي المرتجعات</div>
+    </div>
+  </div>
+  <div class="stat-card green">
+    <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
+    <div class="stat-info">
+      <div class="value">{{ returns|selectattr('status','eq','مكتملة')|list|length }}</div>
+      <div class="label">مكتملة</div>
+    </div>
+  </div>
+  <div class="stat-card" style="border-right-color:var(--warning)">
+    <div class="stat-icon" style="background:rgba(255,193,7,.1);color:var(--warning)"><i class="fas fa-clock"></i></div>
+    <div class="stat-info">
+      <div class="value">{{ returns|selectattr('status','eq','معلقة')|list|length }}</div>
+      <div class="label">معلقة</div>
+    </div>
+  </div>
+  <div class="stat-card red">
+    <div class="stat-icon"><i class="fas fa-money-bill-wave"></i></div>
+    <div class="stat-info">
+      <div class="value">{{ "%.2f"|format(returns|sum(attribute='total_amount') or 0) }} {{ currency }}</div>
+      <div class="label">إجمالي المرتجعات</div>
+    </div>
+  </div>
+</div>
+
+<!-- قائمة المرتجعات -->
+<div class="card">
+  <div class="card-header">
+    <h2><i class="fas fa-list"></i> قائمة مردود المبيعات</h2>
+    <div class="search-bar" style="width:260px">
+      <i class="fas fa-search"></i>
+      <input type="text" id="searchInput" placeholder="بحث..." oninput="filterTable()">
+    </div>
+  </div>
+  <div class="card-body" style="padding:0">
+    <div class="table-wrap">
+      <table class="data-table" id="retTable">
+        <thead>
+          <tr>
+            <th>رقم المردود</th>
+            <th>التاريخ</th>
+            <th>الفاتورة الأصلية</th>
+            <th>العميل</th>
+            <th>الفرع</th>
+            <th>الإجمالي</th>
+            <th>سبب الإرجاع</th>
+            <th>الحالة</th>
+            <th>إجراءات</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in returns %}
+          <tr>
+            <td><strong style="color:var(--danger)">{{ r.return_no }}</strong></td>
+            <td>{{ r.return_date }}</td>
+            <td>{{ r.orig_inv_no or r.original_invoice_no or '-' }}</td>
+            <td>{{ r.customer_name or r.cust_name or '-' }}</td>
+            <td>{{ r.branch_name or '-' }}</td>
+            <td><strong>{{ "%.2f"|format(r.total_amount or 0) }} {{ currency }}</strong></td>
+            <td>{{ r.return_reason or '-' }}</td>
+            <td>
+              {% if r.status == 'مكتملة' %}
+                <span class="badge badge-success">مكتملة</span>
+              {% elif r.status == 'معلقة' %}
+                <span class="badge badge-warning">معلقة</span>
+              {% else %}
+                <span class="badge badge-secondary">{{ r.status }}</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if r.status == 'معلقة' and session.get('role') in ['Admin','Manager'] %}
+              <button class="btn btn-sm btn-success" onclick="approveReturn({{ r.return_id }})">
+                <i class="fas fa-check"></i> اعتماد
+              </button>
+              {% endif %}
+              <button class="btn btn-sm btn-secondary" onclick="viewReturn({{ r.return_id }})">
+                <i class="fas fa-eye"></i>
+              </button>
+              {% if session.get('role') in ['Admin','Manager'] %}
+              <button class="btn btn-sm btn-danger" onclick="deleteReturn({{ r.return_id }}, '{{ r.return_no }}')">
+                <i class="fas fa-trash"></i>
+              </button>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="9" style="text-align:center;padding:40px;color:var(--text-muted)">
+              <i class="fas fa-inbox fa-2x" style="display:block;margin-bottom:10px"></i>
+              لا توجد مرتجعات مبيعات بعد
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: مردود جديد -->
+<div class="modal-overlay" id="returnModal">
+  <div class="modal-box" style="max-width:900px">
+    <div class="modal-header">
+      <h3><i class="fas fa-undo-alt"></i> فاتورة مردود مبيعات جديدة</h3>
+      <button class="modal-close" onclick="closeModal('returnModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <!-- البيانات الأساسية -->
+      <div style="background:#fff5f5;border:1px solid rgba(220,53,69,.2);border-radius:8px;padding:14px;margin-bottom:14px">
+        <div style="font-size:12px;font-weight:700;color:var(--danger);margin-bottom:10px">البيانات الأساسية للمردود</div>
+        <div class="inv-grid">
+          <div class="form-group" style="margin:0">
+            <label class="form-label">رقم المردود</label>
+            <input type="text" class="form-control" id="retNo" value="{{ next_no }}" style="font-weight:700;color:var(--danger)">
+          </div>
+          <div class="form-group" style="margin:0">
+            <label class="form-label">التاريخ</label>
+            <input type="date" class="form-control" id="retDate" value="{{ today }}">
+          </div>
+          <div class="form-group" style="margin:0">
+            <label class="form-label">الفاتورة الأصلية</label>
+            <select class="form-control" id="origInvId" onchange="fillFromInvoice()">
+              <option value="">-- اختر فاتورة --</option>
+              {% for inv in invoices %}
+              <option value="{{ inv.invoice_id }}" data-no="{{ inv.invoice_no }}" data-cust="{{ inv.customer_name }}">
+                {{ inv.invoice_no }} - {{ inv.customer_name }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group" style="margin:0">
+            <label class="form-label">طريقة الاسترداد</label>
+            <select class="form-control" id="retPayMethod">
+              <option>نقدي</option>
+              <option>بطاقة</option>
+              <option>رصيد</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin:0">
+            <label class="form-label">العميل</label>
+            <select class="form-control" id="retCustomerId" onchange="fillRetCustomer()">
+              <option value="">-- اختر عميل --</option>
+              {% for c in customers %}
+              <option value="{{ c.customer_id }}" data-name="{{ c.full_name }}">{{ c.full_name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group" style="margin:0">
+            <label class="form-label">اسم العميل</label>
+            <input type="text" class="form-control" id="retCustomerName" placeholder="اسم العميل">
+          </div>
+          <div class="form-group" style="margin:0">
+            <label class="form-label">الفرع</label>
+            <select class="form-control" id="retBranchId">
+              {% for b in branches %}
+              <option value="{{ b.branch_id }}">{{ b.arabic_name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group" style="margin:0">
+            <label class="form-label">الحالة</label>
+            <select class="form-control" id="retStatus">
+              <option>معلقة</option>
+              <option>مكتملة</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group" style="margin-top:10px;margin-bottom:0">
+          <label class="form-label">سبب الإرجاع</label>
+          <input type="text" class="form-control" id="retReason" placeholder="سبب إرجاع البضاعة...">
+        </div>
+      </div>
+
+      <!-- جدول البنود -->
+      <div style="margin-bottom:14px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <div style="font-size:13px;font-weight:700">بنود المردود</div>
+          <button class="btn btn-sm btn-danger" onclick="addRetItem()">
+            <i class="fas fa-plus"></i> إضافة صنف مرتجع
+          </button>
+        </div>
+        <div class="table-wrap">
+          <table class="items-table">
+            <thead>
+              <tr>
+                <th style="width:30px">#</th>
+                <th>الصنف</th>
+                <th style="width:80px">الكمية المرتجعة</th>
+                <th style="width:80px">الكمية بالفاتورة</th>
+                <th style="width:70px">الوحدة</th>
+                <th style="width:90px">السعر</th>
+                <th style="width:70px">خصم %</th>
+                <th style="width:70px">ضريبة %</th>
+                <th style="width:100px">الإجمالي</th>
+                <th style="width:30px"></th>
+              </tr>
+            </thead>
+            <tbody id="retItems">
+              <tr id="retEmptyRow">
+                <td colspan="10" style="text-align:center;padding:20px;color:var(--text-muted)">
+                  اضغط "+ إضافة صنف مرتجع" لإضافة منتج
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- الإجماليات -->
+      <div style="display:flex;justify-content:flex-end">
+        <div style="background:#fff5f5;border:1px solid rgba(220,53,69,.2);border-radius:8px;padding:14px;min-width:260px">
+          <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:13px">
+            <span style="color:var(--text-muted)">الإجمالي الفرعي:</span>
+            <strong id="retSubtotalDisplay">0.00 {{ currency }}</strong>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:13px">
+            <span style="color:var(--text-muted)">الضريبة:</span>
+            <strong id="retTaxDisplay">0.00 {{ currency }}</strong>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:15px;border-top:2px solid rgba(220,53,69,.3);padding-top:8px;margin-top:8px">
+            <span style="font-weight:700">إجمالي المردود:</span>
+            <strong style="color:var(--danger);font-size:17px" id="retTotalDisplay">0.00 {{ currency }}</strong>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-group" style="margin-top:10px">
+        <label class="form-label">ملاحظات</label>
+        <textarea class="form-control" id="retNotes" rows="2"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-light" onclick="closeModal('returnModal')">إلغاء</button>
+      <button class="btn btn-danger" onclick="saveReturn()">
+        <i class="fas fa-save"></i> حفظ المردود
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: عرض المردود -->
+<div class="modal-overlay" id="viewRetModal">
+  <div class="modal-box" style="max-width:700px">
+    <div class="modal-header">
+      <h3><i class="fas fa-eye"></i> تفاصيل المردود</h3>
+      <button class="modal-close" onclick="closeModal('viewRetModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body" id="viewRetContent">...</div>
+    <div class="modal-footer">
+      <button class="btn btn-light" onclick="closeModal('viewRetModal')">إغلاق</button>
+      <button class="btn btn-secondary" onclick="window.print()"><i class="fas fa-print"></i> طباعة</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const menuItemsRet = {{ menu_items | tojson }};
+const CURRENCY_RET = '{{ currency }}';
+let retRowCount = 0;
+
+function filterTable() {
+  const q = document.getElementById('searchInput').value.toLowerCase();
+  document.querySelectorAll('#retTable tbody tr').forEach(r => {
+    r.style.display = r.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+}
+function openNewReturn() {
+  document.getElementById('retItems').innerHTML = '<tr id="retEmptyRow"><td colspan="10" style="text-align:center;padding:20px;color:var(--text-muted)">اضغط لإضافة منتج مرتجع</td></tr>';
+  retRowCount = 0;
+  retRecalculate();
+  openModal('returnModal');
+}
+function fillFromInvoice() {
+  const sel = document.getElementById('origInvId');
+  const opt = sel.selectedOptions[0];
+  if (opt && opt.dataset.cust) {
+    document.getElementById('retCustomerName').value = opt.dataset.cust;
+  }
+}
+function fillRetCustomer() {
+  const sel = document.getElementById('retCustomerId');
+  const opt = sel.selectedOptions[0];
+  if (opt && opt.dataset.name) {
+    document.getElementById('retCustomerName').value = opt.dataset.name;
+  }
+}
+function addRetItem() {
+  const emptyRow = document.getElementById('retEmptyRow');
+  if (emptyRow) emptyRow.remove();
+  retRowCount++;
+  const rid = 'rr' + retRowCount;
+  const opts = menuItemsRet.map(m => `<option value="${m.item_id}" data-price="${m.price}">${m.item_name}</option>`).join('');
+  const tr = document.createElement('tr');
+  tr.id = rid;
+  tr.innerHTML = `
+    <td>${retRowCount}</td>
+    <td>
+      <select onchange="retFillPrice('${rid}')">
+        <option value="">-- اختر صنف --</option>
+        ${opts}
+      </select>
+    </td>
+    <td><input type="number" value="1" min="0.001" step="0.001" oninput="retRowCalc('${rid}')"></td>
+    <td><input type="number" value="0" step="0.001"></td>
+    <td><input type="text" value="وحدة"></td>
+    <td><input type="number" value="0" step="0.01" oninput="retRowCalc('${rid}')"></td>
+    <td><input type="number" value="0" step="0.01" oninput="retRowCalc('${rid}')"></td>
+    <td><input type="number" value="15" step="0.01" oninput="retRowCalc('${rid}')"></td>
+    <td><strong class="ret-row-total">0.00</strong></td>
+    <td><button class="btn btn-sm btn-danger" onclick="retRemoveRow('${rid}')"><i class="fas fa-times"></i></button></td>
+  `;
+  document.getElementById('retItems').appendChild(tr);
+}
+function retFillPrice(rid) {
+  const tr = document.getElementById(rid);
+  const sel = tr.querySelector('select');
+  const opt = sel.selectedOptions[0];
+  if (opt && opt.dataset.price) {
+    tr.querySelectorAll('input')[2].value = opt.dataset.price;
+    retRowCalc(rid);
+  }
+}
+function retRowCalc(rid) {
+  const tr = document.getElementById(rid);
+  const inputs = tr.querySelectorAll('input');
+  const qty = parseFloat(inputs[0].value) || 0;
+  const price = parseFloat(inputs[2].value) || 0;
+  const disc = parseFloat(inputs[3].value) || 0;
+  const tax = parseFloat(inputs[4].value) || 0;
+  const sub = qty * price;
+  const discAmt = sub * disc / 100;
+  const taxAmt = (sub - discAmt) * tax / 100;
+  tr.querySelector('.ret-row-total').textContent = (sub - discAmt + taxAmt).toFixed(2);
+  retRecalculate();
+}
+function retRemoveRow(rid) {
+  document.getElementById(rid).remove();
+  retRecalculate();
+}
+function retRecalculate() {
+  let sub = 0, tax = 0;
+  document.querySelectorAll('#retItems tr[id^="rr"]').forEach(tr => {
+    const inputs = tr.querySelectorAll('input');
+    if (inputs.length < 5) return;
+    const qty = parseFloat(inputs[0].value) || 0;
+    const price = parseFloat(inputs[2].value) || 0;
+    const disc = parseFloat(inputs[3].value) || 0;
+    const taxPct = parseFloat(inputs[4].value) || 0;
+    const rowSub = qty * price;
+    const rowDisc = rowSub * disc / 100;
+    sub += rowSub - rowDisc;
+    tax += (rowSub - rowDisc) * taxPct / 100;
+  });
+  document.getElementById('retSubtotalDisplay').textContent = sub.toFixed(2) + ' ' + CURRENCY_RET;
+  document.getElementById('retTaxDisplay').textContent = tax.toFixed(2) + ' ' + CURRENCY_RET;
+  document.getElementById('retTotalDisplay').textContent = (sub + tax).toFixed(2) + ' ' + CURRENCY_RET;
+}
+async function saveReturn() {
+  const items = [];
+  document.querySelectorAll('#retItems tr[id^="rr"]').forEach(tr => {
+    const sel = tr.querySelector('select');
+    const inputs = tr.querySelectorAll('input');
+    if (!sel || !sel.value) return;
+    const qty = parseFloat(inputs[0].value) || 0;
+    const qtyInv = parseFloat(inputs[1].value) || 0;
+    const price = parseFloat(inputs[2].value) || 0;
+    const disc = parseFloat(inputs[3].value) || 0;
+    const taxPct = parseFloat(inputs[4].value) || 0;
+    const sub = qty * price;
+    const discAmt = sub * disc / 100;
+    const taxAmt = (sub - discAmt) * taxPct / 100;
+    items.push({
+      menu_item_id: parseInt(sel.value),
+      item_name: sel.selectedOptions[0]?.text || '',
+      quantity: qty, quantity_invoiced: qtyInv,
+      unit: inputs[2+1]?.value || 'وحدة',
+      unit_price: price, discount_pct: disc, tax_pct: taxPct,
+      subtotal: sub - discAmt + taxAmt
+    });
+  });
+  if (items.length === 0) { showToast('الرجاء إضافة صنف واحد على الأقل', 'error'); return; }
+  const total = parseFloat(document.getElementById('retTotalDisplay').textContent) || 0;
+  const sub = parseFloat(document.getElementById('retSubtotalDisplay').textContent) || 0;
+  const tax = parseFloat(document.getElementById('retTaxDisplay').textContent) || 0;
+  const origSel = document.getElementById('origInvId');
+  const data = {
+    return_no: document.getElementById('retNo').value,
+    return_date: document.getElementById('retDate').value,
+    original_invoice_id: origSel.value || null,
+    original_invoice_no: origSel.selectedOptions[0]?.dataset.no || '',
+    customer_id: document.getElementById('retCustomerId').value || null,
+    customer_name: document.getElementById('retCustomerName').value,
+    branch_id: document.getElementById('retBranchId').value || null,
+    payment_method: document.getElementById('retPayMethod').value,
+    return_reason: document.getElementById('retReason').value,
+    status: document.getElementById('retStatus').value,
+    subtotal: sub, tax_amount: tax, total_amount: total,
+    notes: document.getElementById('retNotes').value,
+    items
+  };
+  const res = await apiPost('/sales/returns/create', data);
+  if (res.success) {
+    showToast('تم حفظ المردود: ' + res.return_no);
+    setTimeout(() => location.reload(), 1200);
+    closeModal('returnModal');
+  } else {
+    showToast(res.error || 'حدث خطأ', 'error');
+  }
+}
+async function approveReturn(id) {
+  if (!confirm('اعتماد هذا المردود؟')) return;
+  const res = await apiPost('/sales/returns/approve', { return_id: id });
+  if (res.success) { showToast('تم اعتماد المردود'); setTimeout(() => location.reload(), 1000); }
+  else showToast(res.error || 'خطأ', 'error');
+}
+async function viewReturn(id) {
+  const res = await fetch('/sales/returns/' + id);
+  const data = await res.json();
+  const ret = data.return;
+  const items = data.items;
+  let itemsHtml = items.map((it,i) => `
+    <tr>
+      <td>${i+1}</td>
+      <td>${it.item_name}</td>
+      <td>${it.quantity}</td>
+      <td>${it.unit||''}</td>
+      <td>${parseFloat(it.unit_price||0).toFixed(2)}</td>
+      <td><strong>${parseFloat(it.subtotal||0).toFixed(2)}</strong></td>
+    </tr>`).join('');
+  document.getElementById('viewRetContent').innerHTML = `
+    <div style="background:#fff5f5;padding:12px;border-radius:8px;margin-bottom:12px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div><strong>رقم المردود:</strong> ${ret.return_no}</div>
+      <div><strong>التاريخ:</strong> ${ret.return_date}</div>
+      <div><strong>العميل:</strong> ${ret.customer_name || '-'}</div>
+      <div><strong>الفاتورة الأصلية:</strong> ${ret.original_invoice_no || '-'}</div>
+      <div><strong>سبب الإرجاع:</strong> ${ret.return_reason || '-'}</div>
+      <div><strong>الحالة:</strong> ${ret.status}</div>
+    </div>
+    <table class="items-table">
+      <thead><tr><th>#</th><th>الصنف</th><th>الكمية</th><th>الوحدة</th><th>السعر</th><th>الإجمالي</th></tr></thead>
+      <tbody>${itemsHtml || '<tr><td colspan="6" style="text-align:center">لا توجد بنود</td></tr>'}</tbody>
+    </table>
+    <div style="text-align:left;margin-top:10px;font-size:14px;font-weight:700;color:var(--danger)">
+      إجمالي المردود: ${parseFloat(ret.total_amount||0).toFixed(2)} ${CURRENCY_RET}
+    </div>
+  `;
+  openModal('viewRetModal');
+}
+async function deleteReturn(id, no) {
+  if (!confirm('حذف المردود ' + no + '؟')) return;
+  const res = await apiPost('/sales/returns/delete', { return_id: id });
+  if (res.success) { showToast('تم الحذف'); setTimeout(() => location.reload(), 1000); }
+  else showToast(res.error || 'خطأ', 'error');
+}
+</script>
+{% endblock %}

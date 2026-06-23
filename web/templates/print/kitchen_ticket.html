@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>طلب المطبخ #{{ order.order_id }}</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: 'Arial', sans-serif; font-size: 13px; color: #000; background: #fff; }
+  .ticket-container { display: flex; flex-wrap: wrap; gap: 10px; padding: 10px; }
+  .ticket { width: 72mm; border: 2px solid #000; padding: 10px; page-break-inside: avoid; }
+  .center { text-align: center; }
+  .bold { font-weight: bold; }
+  .separator { border-top: 2px dashed #000; margin: 6px 0; }
+  .separator-solid { border-top: 2px solid #000; margin: 6px 0; }
+  .order-header { background: #1a2332; color: #fff; padding: 6px 10px; margin: -10px -10px 8px -10px; }
+  .category-label { background: #F7941D; color: #fff; padding: 3px 8px; font-size: 12px; font-weight: bold; display: inline-block; border-radius: 3px; margin-bottom: 6px; }
+  .item-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px dashed #999; font-size: 14px; }
+  .item-name { flex: 1; font-weight: bold; }
+  .item-qty { font-size: 18px; font-weight: 900; color: #c0392b; width: 35px; text-align: center; }
+  .time-badge { font-size: 16px; font-weight: 900; color: #F7941D; }
+  @media print {
+    body { }
+    .no-print { display: none !important; }
+    @page { margin: 5mm; }
+    .ticket { page-break-inside: avoid; break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Buttons -->
+<div class="no-print" style="padding:12px;display:flex;gap:10px;background:#f5f5f5;border-bottom:1px solid #ddd;align-items:center">
+  <button onclick="window.print()" style="background:#1a2332;color:#fff;border:none;padding:8px 20px;border-radius:6px;cursor:pointer;font-size:14px;font-family:Arial;font-weight:bold">🖨️ طباعة جميع التذاكر</button>
+  <button onclick="window.close()" style="background:#e74c3c;color:#fff;border:none;padding:8px 20px;border-radius:6px;cursor:pointer;font-size:14px;font-family:Arial">✕ إغلاق</button>
+  <span style="font-size:13px;color:#555">طلب #{{ order.order_id }} — {{ categories|length }} قسم</span>
+</div>
+
+<div class="ticket-container">
+
+{% if ticket_per_cat %}
+  <!-- Separate ticket per category -->
+  {% for cat_name, cat_items in categories.items() %}
+  <div class="ticket">
+    <div class="order-header center">
+      <div class="bold" style="font-size:15px">{{ settings.get('kitchen_copy_label','طلب المطبخ') }}</div>
+      <div style="font-size:12px">طلب #<span style="font-size:16px;font-weight:900">{{ order.order_id }}</span></div>
+    </div>
+    
+    <div class="center">
+      <span class="category-label">🍴 {{ cat_name }}</span>
+    </div>
+    
+    {% if settings.get('kitchen_show_table','1')=='1' and order.table_number %}
+    <div style="font-size:13px;margin-bottom:4px"><strong>الطاولة:</strong> {{ order.table_number }}</div>
+    {% endif %}
+    
+    {% if settings.get('kitchen_show_time','1')=='1' %}
+    <div style="font-size:11px;color:#555;margin-bottom:4px">
+      الوقت: <span class="time-badge">{{ order.created_at.strftime('%H:%M') if order.created_at else '--:--' }}</span>
+    </div>
+    {% endif %}
+    
+    {% if order.customer_name and order.customer_name != 'Guest' %}
+    <div style="font-size:12px;margin-bottom:4px"><strong>العميل:</strong> {{ order.customer_name }}</div>
+    {% endif %}
+    
+    <div class="separator"></div>
+    
+    <div style="font-size:10px;color:#888;display:flex;justify-content:space-between">
+      <span>الصنف</span><span>الكمية</span>
+    </div>
+    <div class="separator"></div>
+    
+    {% for item in cat_items %}
+    <div class="item-row">
+      <span class="item-name">{{ item.item_name }}</span>
+      <span class="item-qty">×{{ item.quantity }}</span>
+    </div>
+    {% endfor %}
+    
+    {% if settings.get('kitchen_show_notes','1')=='1' and order.notes %}
+    <div class="separator"></div>
+    <div style="font-size:11px;background:#fffde7;padding:4px;border-radius:3px">
+      <strong>ملاحظة:</strong> {{ order.notes }}
+    </div>
+    {% endif %}
+    
+    <div class="separator-solid"></div>
+    <div class="center" style="font-size:10px;color:#888">{{ order.created_at.strftime('%Y-%m-%d') if order.created_at else '' }}</div>
+  </div>
+  {% endfor %}
+
+{% else %}
+  <!-- Single combined kitchen ticket -->
+  <div class="ticket" style="width:80mm">
+    <div class="order-header center">
+      <div class="bold" style="font-size:15px">{{ settings.get('kitchen_copy_label','طلب المطبخ') }}</div>
+      <div>طلب #<span style="font-size:18px;font-weight:900">{{ order.order_id }}</span></div>
+    </div>
+    
+    {% if settings.get('kitchen_show_table','1')=='1' and order.table_number %}
+    <div><strong>الطاولة:</strong> {{ order.table_number }}</div>
+    {% endif %}
+    {% if settings.get('kitchen_show_time','1')=='1' %}
+    <div>الوقت: <span class="time-badge">{{ order.created_at.strftime('%H:%M') if order.created_at else '' }}</span></div>
+    {% endif %}
+    
+    <div class="separator"></div>
+    {% for cat_name, cat_items in categories.items() %}
+      <div><span class="category-label">{{ cat_name }}</span></div>
+      {% for item in cat_items %}
+      <div class="item-row">
+        <span class="item-name">{{ item.item_name }}</span>
+        <span class="item-qty">×{{ item.quantity }}</span>
+      </div>
+      {% endfor %}
+    {% endfor %}
+    
+    {% if settings.get('kitchen_show_notes','1')=='1' and order.notes %}
+    <div class="separator"></div>
+    <div style="font-size:11px;background:#fffde7;padding:4px"><strong>ملاحظة:</strong> {{ order.notes }}</div>
+    {% endif %}
+    <div class="separator-solid"></div>
+  </div>
+{% endif %}
+
+</div>
+
+<script>if (window.opener) setTimeout(() => window.print(), 600);</script>
+</body>
+</html>

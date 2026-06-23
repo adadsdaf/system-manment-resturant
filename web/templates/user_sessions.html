@@ -1,0 +1,103 @@
+{% extends 'base.html' %}
+{% block title %}جلسات المستخدمين{% endblock %}
+{% block page_icon %}fa-user-clock{% endblock %}
+{% block page_title %}سجل الدخول والخروج{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1><i class="fas fa-user-clock"></i> إدارة الصلاحيات - سجل جلسات المستخدمين</h1>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <h2><i class="fas fa-list"></i> سجل الدخول والخروج</h2>
+    <div style="display:flex;gap:10px;align-items:center">
+      <div class="search-bar" style="width:240px">
+        <i class="fas fa-search"></i>
+        <input type="text" id="searchInput" placeholder="بحث..." oninput="filterTable()">
+      </div>
+    </div>
+  </div>
+
+  <!-- إحصاء الجلسات -->
+  <div style="padding:16px 20px;display:flex;gap:16px;flex-wrap:wrap;border-bottom:1px solid var(--border)">
+    <div style="background:rgba(247,148,29,.1);border:1px solid rgba(247,148,29,.3);border-radius:8px;padding:10px 16px;display:flex;align-items:center;gap:8px">
+      <i class="fas fa-circle" style="color:var(--orange)"></i>
+      <span style="font-size:13px;font-weight:600">إجمالي الجلسات: <strong>{{ sessions|length }}</strong></span>
+    </div>
+    <div style="background:rgba(40,167,69,.1);border:1px solid rgba(40,167,69,.3);border-radius:8px;padding:10px 16px;display:flex;align-items:center;gap:8px">
+      <i class="fas fa-circle" style="color:var(--success)"></i>
+      <span style="font-size:13px;font-weight:600">نشطة: <strong>{{ sessions|selectattr('session_status','eq','active')|list|length }}</strong></span>
+    </div>
+    <div style="background:rgba(108,117,125,.1);border:1px solid rgba(108,117,125,.3);border-radius:8px;padding:10px 16px;display:flex;align-items:center;gap:8px">
+      <i class="fas fa-circle" style="color:var(--text-muted)"></i>
+      <span style="font-size:13px;font-weight:600">مغلقة: <strong>{{ sessions|selectattr('session_status','eq','closed')|list|length }}</strong></span>
+    </div>
+  </div>
+
+  <div class="card-body" style="padding:0">
+    <div class="table-wrap">
+      <table class="data-table" id="sessTable">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>المستخدم</th>
+            <th>الجهاز / IP</th>
+            <th>تاريخ الدخول</th>
+            <th>وقت الدخول</th>
+            <th>تاريخ الخروج</th>
+            <th>وقت الخروج</th>
+            <th>الفرع</th>
+            <th>الحالة</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in sessions %}
+          <tr>
+            <td>{{ loop.index }}</td>
+            <td>
+              <div style="font-weight:600">{{ s.full_name or s.username }}</div>
+              <div style="font-size:11px;color:var(--text-muted)">{{ s.username }}</div>
+            </td>
+            <td>
+              <div>{{ s.machine_name or '-' }}</div>
+              <div style="font-size:11px;color:var(--text-muted)">{{ s.ip_address or '' }}</div>
+            </td>
+            <td>{{ s.login_time.strftime('%Y/%m/%d') if s.login_time else '-' }}</td>
+            <td>{{ s.login_time.strftime('%H:%M:%S') if s.login_time else '-' }}</td>
+            <td>{{ s.logout_time.strftime('%Y/%m/%d') if s.logout_time else '-' }}</td>
+            <td>{{ s.logout_time.strftime('%H:%M:%S') if s.logout_time else '-' }}</td>
+            <td>{{ s.branch_name or '-' }}</td>
+            <td>
+              {% if s.session_status == 'active' %}
+                <span class="badge badge-success"><i class="fas fa-circle" style="font-size:8px"></i> نشط</span>
+              {% else %}
+                <span class="badge badge-secondary"><i class="fas fa-circle" style="font-size:8px"></i> مغلق</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="9" style="text-align:center;padding:40px;color:var(--text-muted)">
+              <i class="fas fa-inbox fa-2x" style="display:block;margin-bottom:10px"></i>
+              لا توجد جلسات مسجلة
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function filterTable() {
+  const q = document.getElementById('searchInput').value.toLowerCase();
+  document.querySelectorAll('#sessTable tbody tr').forEach(r => {
+    r.style.display = r.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+}
+</script>
+{% endblock %}
